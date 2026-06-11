@@ -12,7 +12,6 @@ if (app.Environment.IsDevelopment())
 }
 
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy" }))
-    .WithName("GetHealth")
-    .WithOpenApi();
+    .WithName("GetHealth");
 
 app.Run();
