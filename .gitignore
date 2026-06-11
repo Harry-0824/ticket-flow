@@ -1,0 +1,3 @@
+# Backend build outputs
+backend/**/bin/
+backend/**/obj/
