@@ -1,41 +1,41 @@
 # TicketFlow
 
-TicketFlow is a portfolio-focused ticket management project planned as a Vue 3 frontend plus an ASP.NET Core Web API backend.
+TicketFlow 是一個作品集導向的工單管理專案，規劃使用 Vue 3 前端與 ASP.NET Core Web API 後端。
 
-## Goal
+## 專案目標
 
-Build a small, reviewable MVP that demonstrates a practical support-ticket workflow for freelance and portfolio use. The first implementation should stay focused on core ticket creation, listing, detail review, and status updates.
+建立一個小型、可審查、範圍清楚的 MVP，展示自由接案與作品集情境中的基本客服工單流程。第一版實作應專注在工單建立、清單瀏覽、詳細內容檢視與狀態更新。
 
-## Planned Tech Stack
+## 規劃技術棧
 
-- Frontend: Vue 3
-- Backend: ASP.NET Core Web API
-- Database: SQL Server or SQLite, to be selected during implementation
-- API style: REST JSON endpoints
+- 前端：Vue 3
+- 後端：ASP.NET Core Web API
+- 資料庫：SQL Server 或 SQLite，於後續實作階段決定
+- API 形式：REST JSON endpoints
 
-## MVP Scope
+## MVP 範圍
 
-- Create a ticket with title, description, status, priority, and requester name.
-- View a list of tickets.
-- View one ticket detail page.
-- Update ticket status.
-- Keep data model and UI intentionally simple.
+- 建立包含標題、描述、狀態、優先程度與請求人姓名的工單。
+- 查看工單清單。
+- 查看單一工單詳細頁。
+- 更新工單狀態。
+- 保持資料模型與介面簡單明確。
 
-## Out of Scope
+## 不在範圍內
 
-The MVP explicitly excludes:
+MVP 明確排除：
 
-- Authentication
-- User roles or permissions
+- 身分驗證
+- 使用者角色或權限
 - Docker
 - CI/CD
-- Notifications
-- File upload
-- Production deployment
-- Advanced search, reporting, or analytics
-- Multi-tenant or billing features
+- 通知功能
+- 檔案上傳
+- 正式 production 部署
+- 進階搜尋、報表或分析
+- 多租戶或計費功能
 
-## Planned Repository Structure
+## 規劃中的 Repository 結構
 
 ```text
 /frontend
@@ -45,31 +45,31 @@ The MVP explicitly excludes:
   ASP.NET Core Web API application
 ```
 
-This structure is planned only. Application folders should be created by later implementation issues.
+以上結構僅為規劃。應由後續明確指定的實作 Issue 建立應用程式資料夾。
 
-## Planned API Routes
+## 規劃中的 API Routes
 
-- `GET /api/tickets` - list tickets
-- `GET /api/tickets/{id}` - get ticket details
-- `POST /api/tickets` - create a ticket
-- `PATCH /api/tickets/{id}/status` - update ticket status
+- `GET /api/tickets` - 取得工單清單
+- `GET /api/tickets/{id}` - 取得工單詳細內容
+- `POST /api/tickets` - 建立工單
+- `PATCH /api/tickets/{id}/status` - 更新工單狀態
 
-## Planned Frontend Routes
+## 規劃中的前端 Routes
 
-- `/` - ticket list
-- `/tickets/new` - create ticket
-- `/tickets/:id` - ticket detail
+- `/` - 工單清單
+- `/tickets/new` - 建立工單
+- `/tickets/:id` - 工單詳細頁
 
-## Local Setup Placeholder
+## 本機設定 Placeholder
 
-Local setup instructions will be added after the frontend and backend projects exist. No app code or package files are included in this planning step.
+本機設定說明會在前端與後端專案實際建立後補上。本次 planning step 不包含任何應用程式程式碼或 package 檔案。
 
-## MVP Limitations
+## MVP 限制
 
-- The MVP is not production-ready.
-- Security, authentication, deployment, and operational concerns are intentionally deferred.
-- The first version should optimize for readable code and clear portfolio value, not full enterprise workflow coverage.
+- MVP 不是 production-ready 版本。
+- 安全性、身分驗證、部署與營運相關事項會刻意延後處理。
+- 第一版應優先呈現可讀性高的程式碼與清楚的作品集價值，而不是完整企業級流程覆蓋。
 
-## Portfolio Positioning
+## 作品集定位
 
-TicketFlow is intended to show end-to-end product thinking, API design, frontend/backend integration, and disciplined scope control in a small ticket-management system.
+TicketFlow 用來展示端到端產品思考、API 設計、前後端整合，以及在小型工單管理系統中維持紀律化範圍控制的能力。
