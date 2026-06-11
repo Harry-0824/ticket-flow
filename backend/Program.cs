@@ -1,5 +1,10 @@
+using Microsoft.EntityFrameworkCore;
+using TicketFlow.Api.Data;
+
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddDbContext<TicketFlowDbContext>(options =>
+    options.UseSqlite(builder.Configuration.GetConnectionString("TicketFlow")));
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
