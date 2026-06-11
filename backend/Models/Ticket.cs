@@ -12,5 +12,9 @@ public class Ticket
 
     public TicketPriority Priority { get; set; } = TicketPriority.Medium;
 
-    public string RequesterName { get; set; } = string.Empty;
+    public string Assignee { get; set; } = string.Empty;
+
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

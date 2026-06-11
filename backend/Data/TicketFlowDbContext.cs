@@ -17,7 +17,9 @@ public class TicketFlowDbContext(DbContextOptions<TicketFlowDbContext> options) 
             ticket.Property(item => item.Description).HasMaxLength(2000).IsRequired();
             ticket.Property(item => item.Status).IsRequired();
             ticket.Property(item => item.Priority).IsRequired();
-            ticket.Property(item => item.RequesterName).HasMaxLength(120).IsRequired();
+            ticket.Property(item => item.Assignee).HasMaxLength(120).IsRequired();
+            ticket.Property(item => item.CreatedAt).IsRequired();
+            ticket.Property(item => item.UpdatedAt).IsRequired();
         });
     }
 }
