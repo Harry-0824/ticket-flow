@@ -107,3 +107,96 @@ main {
   margin-top: 16px;
   padding: 24px;
 }
+
+.ticket-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  margin-top: 16px;
+}
+
+.ticket-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+}
+
+.ticket-table th,
+.ticket-table td {
+  padding: 16px;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+  vertical-align: top;
+}
+
+.ticket-table th {
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.ticket-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.ticket-title {
+  color: #111827;
+  font-weight: 700;
+}
+
+.ticket-description {
+  color: #6b7280;
+  font-size: 14px;
+  line-height: 1.5;
+  margin-top: 6px;
+  max-width: 420px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+
+.status-badge[data-status="Open"] {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.status-badge[data-status="InProgress"] {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-badge[data-status="Done"] {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-badge[data-status="Archived"] {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.priority-badge[data-priority="High"] {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.priority-badge[data-priority="Medium"] {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.priority-badge[data-priority="Low"] {
+  background: #ecfdf5;
+  color: #047857;
+}
