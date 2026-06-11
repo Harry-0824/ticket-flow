@@ -1,15 +1,14 @@
-export type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed'
+export type TicketStatus = 'Open' | 'InProgress' | 'Done' | 'Archived'
 
-export type TicketPriority = 'low' | 'medium' | 'high' | 'urgent'
+export type TicketPriority = 'Low' | 'Medium' | 'High'
 
 export type Ticket = {
-  id: string
+  id: number
   title: string
   description: string
   status: TicketStatus
   priority: TicketPriority
-  requesterName: string
-  assigneeName: string | null
+  assignee: string
   createdAt: string
   updatedAt: string
 }
