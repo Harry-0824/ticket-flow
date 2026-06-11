@@ -22,8 +22,34 @@ app.MapGet("/health", () => Results.Ok(new { status = "Healthy" }))
 
 var tickets = app.MapGroup("/api/tickets").WithTags("Tickets");
 
-tickets.MapGet("", async (TicketFlowDbContext db) =>
-    await db.Tickets.AsNoTracking().ToListAsync())
+tickets.MapGet("", async (
+    TicketStatus? status,
+    TicketPriority? priority,
+    string? keyword,
+    TicketFlowDbContext db) =>
+{
+    var query = db.Tickets.AsNoTracking();
+
+    if (status is not null)
+    {
+        query = query.Where(ticket => ticket.Status == status);
+    }
+
+    if (priority is not null)
+    {
+        query = query.Where(ticket => ticket.Priority == priority);
+    }
+
+    if (!string.IsNullOrWhiteSpace(keyword))
+    {
+        var searchTerm = keyword.Trim();
+        query = query.Where(ticket =>
+            ticket.Title.Contains(searchTerm) ||
+            ticket.Description.Contains(searchTerm));
+    }
+
+    return await query.ToListAsync();
+})
     .WithName("ListTickets");
 
 tickets.MapGet("/{id:int}", async (int id, TicketFlowDbContext db) =>
