@@ -1,10 +1,13 @@
+<script setup lang="ts">
+import TicketTable from '../components/TicketTable.vue'
+import { mockTickets } from '../data/mockTickets'
+</script>
+
 <template>
   <section class="page">
     <h1>Tickets</h1>
-    <p>This placeholder route confirms routing is ready for future ticket pages.</p>
+    <p>Review support tickets from the current mock dataset.</p>
 
-    <div class="placeholder-panel" aria-label="Ticket route placeholder">
-      Ticket CRUD UI is intentionally out of scope for this issue.
-    </div>
+    <TicketTable :tickets="mockTickets" />
   </section>
 </template>
