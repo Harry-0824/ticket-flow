@@ -4,8 +4,7 @@ import type { Ticket, TicketPriority, TicketStatus } from '../types/ticket'
 export type TicketQueryParams = {
   status?: TicketStatus
   priority?: TicketPriority
-  assignee?: string
-  search?: string
+  keyword?: string
 }
 
 export type CreateTicketInput = Omit<Ticket, 'id' | 'createdAt' | 'updatedAt'>
@@ -17,11 +16,17 @@ const ticketsUrl = (path = '') => `${API_BASE_URL}/tickets${path}`
 const buildQueryString = (params: TicketQueryParams = {}) => {
   const searchParams = new URLSearchParams()
 
-  Object.entries(params).forEach(([key, value]) => {
-    if (value) {
-      searchParams.set(key, value)
-    }
-  })
+  if (params.status) {
+    searchParams.set('status', params.status)
+  }
+
+  if (params.priority) {
+    searchParams.set('priority', params.priority)
+  }
+
+  if (params.keyword) {
+    searchParams.set('keyword', params.keyword)
+  }
 
   const queryString = searchParams.toString()
   return queryString ? `?${queryString}` : ''
