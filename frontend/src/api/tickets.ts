@@ -13,6 +13,15 @@ export type UpdateTicketInput = Partial<CreateTicketInput>
 
 const ticketsUrl = (path = '') => `${API_BASE_URL}/tickets${path}`
 
+export class TicketApiError extends Error {
+  readonly status: number
+
+  constructor(status: number) {
+    super(`Ticket API request failed with status ${status}`)
+    this.status = status
+  }
+}
+
 const buildQueryString = (params: TicketQueryParams = {}) => {
   const searchParams = new URLSearchParams()
 
@@ -42,7 +51,7 @@ const requestJson = async <T>(url: string, init?: RequestInit): Promise<T> => {
   })
 
   if (!response.ok) {
-    throw new Error(`Ticket API request failed with status ${response.status}`)
+    throw new TicketApiError(response.status)
   }
 
   return response.json() as Promise<T>
