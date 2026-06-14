@@ -1,75 +1,108 @@
 # TicketFlow
 
-TicketFlow 是一個作品集導向的工單管理專案，規劃使用 Vue 3 前端與 ASP.NET Core Web API 後端。
+TicketFlow is a small full-stack ticket management MVP built for portfolio and interview discussion. It demonstrates a focused CRUD workflow: a user can view, filter, create, edit, and delete support tickets through a Vue frontend connected to an ASP.NET Core Web API.
 
-## 專案目標
+The project is intentionally scoped as an MVP. It favors clear product boundaries, readable implementation, and end-to-end data flow over enterprise features.
 
-建立一個小型、可審查、範圍清楚的 MVP，展示自由接案與作品集情境中的基本客服工單流程。第一版實作應專注在工單建立、清單瀏覽、詳細內容檢視與狀態更新。
+## Tech Stack
 
-## 規劃技術棧
+- Frontend: Vue 3, TypeScript, Vue Router, Vite
+- Backend: ASP.NET Core Web API
+- Data access: EF Core
+- Database: SQLite
+- API style: REST JSON endpoints
 
-- 前端：Vue 3
-- 後端：ASP.NET Core Web API
-- 資料庫：SQL Server 或 SQLite，於後續實作階段決定
-- API 形式：REST JSON endpoints
+## Completed MVP Features
 
-## MVP 範圍
+- Ticket list loaded from the backend API
+- Status, priority, and keyword filters using backend-supported query params
+- Ticket detail page loaded by ticket id
+- Create ticket form
+- Edit ticket form
+- Delete ticket action with confirmation
+- Loading, error, empty, and not-found states across the main ticket flows
 
-- 建立包含標題、描述、狀態、優先程度與請求人姓名的工單。
-- 查看工單清單。
-- 查看單一工單詳細頁。
-- 更新工單狀態。
-- 保持資料模型與介面簡單明確。
+## Data Flow
 
-## 不在範圍內
+The frontend calls the API service in `frontend/src/api/tickets.ts`. That service sends HTTP requests to the ASP.NET Core backend under `/api/tickets`.
 
-MVP 明確排除：
+The backend handles ticket CRUD through minimal API endpoints, uses EF Core for data access, and persists ticket records in SQLite. Ticket data flows back to the Vue views as JSON and is rendered through focused pages and reusable badge/table components.
 
-- 身分驗證
-- 使用者角色或權限
-- Docker
-- CI/CD
-- 通知功能
-- 檔案上傳
-- 正式 production 部署
-- 進階搜尋、報表或分析
-- 多租戶或計費功能
-
-## 規劃中的 Repository 結構
+## Architecture
 
 ```text
-/frontend
-  Vue 3 application
+frontend/
+  Vue 3 app, routes, views, components, and API client
 
-/backend
-  ASP.NET Core Web API application
+backend/
+  ASP.NET Core Web API, EF Core DbContext, models, and migrations
 ```
 
-以上結構僅為規劃。應由後續明確指定的實作 Issue 建立應用程式資料夾。
+The frontend keeps state local to each page for this MVP. The backend keeps the ticket API simple and aligned to the current ticket model: title, description, status, priority, assignee, created time, and updated time.
 
-## 規劃中的 API Routes
+## API Contract Summary
 
-- `GET /api/tickets` - 取得工單清單
-- `GET /api/tickets/{id}` - 取得工單詳細內容
-- `POST /api/tickets` - 建立工單
-- `PATCH /api/tickets/{id}/status` - 更新工單狀態
+- `GET /api/tickets`
+  - Returns the ticket list.
+  - Supports `status`, `priority`, and `keyword` query params.
+- `GET /api/tickets/{id}`
+  - Returns one ticket by id.
+- `POST /api/tickets`
+  - Creates a ticket.
+- `PUT /api/tickets/{id}`
+  - Updates a ticket.
+- `DELETE /api/tickets/{id}`
+  - Deletes a ticket.
 
-## 規劃中的前端 Routes
+## Local Development
 
-- `/` - 工單清單
-- `/tickets/new` - 建立工單
-- `/tickets/:id` - 工單詳細頁
+Run the backend:
 
-## 本機設定 Placeholder
+```bash
+cd backend
+dotnet restore
+dotnet run
+```
 
-本機設定說明會在前端與後端專案實際建立後補上。本次 planning step 不包含任何應用程式程式碼或 package 檔案。
+Run the frontend:
 
-## MVP 限制
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-- MVP 不是 production-ready 版本。
-- 安全性、身分驗證、部署與營運相關事項會刻意延後處理。
-- 第一版應優先呈現可讀性高的程式碼與清楚的作品集價值，而不是完整企業級流程覆蓋。
+Build the frontend:
 
-## 作品集定位
+```bash
+cd frontend
+npm run build
+```
 
-TicketFlow 用來展示端到端產品思考、API 設計、前後端整合，以及在小型工單管理系統中維持紀律化範圍控制的能力。
+## Portfolio Story
+
+TicketFlow is a compact example of taking a product slice from planning to working full-stack MVP. The work is organized around small GitHub Issues, each with a narrow scope, validation step, and pull request.
+
+The project shows:
+
+- API contract alignment between frontend and backend
+- Real API integration instead of mock data
+- Incremental CRUD workflow delivery
+- Simple route and view boundaries
+- Practical loading, error, and not-found handling
+- Scope discipline for issue-driven development
+
+## Out of Scope
+
+These are not implemented in the current MVP:
+
+- Authentication or roles
+- Docker setup
+- Deployment setup
+- CI setup
+- Notifications
+- File uploads
+- Reporting or analytics
+- Multi-tenant or billing workflows
+
+Future work can add these capabilities after the core ticket workflow remains stable.
