@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import CreateTicketView from '../views/CreateTicketView.vue'
+import EditTicketView from '../views/EditTicketView.vue'
 import HomeView from '../views/HomeView.vue'
 import TicketDetailView from '../views/TicketDetailView.vue'
 import TicketsView from '../views/TicketsView.vue'
@@ -26,6 +27,11 @@ export const router = createRouter({
       path: '/tickets/:id',
       name: 'ticket-detail',
       component: TicketDetailView,
+    },
+    {
+      path: '/tickets/:id/edit',
+      name: 'edit-ticket',
+      component: EditTicketView,
     },
   ],
 })
