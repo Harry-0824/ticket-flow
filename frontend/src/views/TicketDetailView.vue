@@ -1,17 +1,21 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
-import { getTicketById, TicketApiError } from '../api/tickets'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { deleteTicket, getTicketById, TicketApiError } from '../api/tickets'
 import PriorityBadge from '../components/PriorityBadge.vue'
 import StatusBadge from '../components/StatusBadge.vue'
 import type { Ticket } from '../types/ticket'
 
 const route = useRoute()
+const router = useRouter()
 
 const ticket = ref<Ticket | null>(null)
 const isLoading = ref(true)
+const isDeleting = ref(false)
 const errorMessage = ref('')
+const deleteErrorMessage = ref('')
 const isNotFound = ref(false)
+const isConfirmingDelete = ref(false)
 
 const formatDateTime = (date: string) =>
   new Intl.DateTimeFormat('en', {
@@ -21,6 +25,25 @@ const formatDateTime = (date: string) =>
     hour: 'numeric',
     minute: '2-digit',
   }).format(new Date(date))
+
+const deleteCurrentTicket = async () => {
+  if (!ticket.value) {
+    return
+  }
+
+  deleteErrorMessage.value = ''
+  isDeleting.value = true
+
+  try {
+    await deleteTicket(ticket.value.id)
+    await router.push('/tickets')
+  } catch {
+    deleteErrorMessage.value =
+      'Unable to delete this ticket. Please try again later.'
+  } finally {
+    isDeleting.value = false
+  }
+}
 
 onMounted(async () => {
   const ticketId = Number(route.params.id)
@@ -84,6 +107,41 @@ onMounted(async () => {
           <dd>{{ formatDateTime(ticket.updatedAt) }}</dd>
         </div>
       </dl>
+
+      <div class="ticket-actions">
+        <button
+          v-if="!isConfirmingDelete"
+          type="button"
+          class="danger-button"
+          @click="isConfirmingDelete = true"
+        >
+          Delete ticket
+        </button>
+      </div>
+
+      <div v-if="isConfirmingDelete" class="delete-confirmation">
+        <p>This action cannot be undone.</p>
+        <button
+          type="button"
+          class="danger-button"
+          :disabled="isDeleting"
+          @click="deleteCurrentTicket"
+        >
+          {{ isDeleting ? 'Deleting...' : 'Confirm delete' }}
+        </button>
+        <button
+          type="button"
+          class="secondary-button"
+          :disabled="isDeleting"
+          @click="isConfirmingDelete = false"
+        >
+          Cancel
+        </button>
+      </div>
+
+      <div v-if="deleteErrorMessage" class="form-error" role="alert">
+        {{ deleteErrorMessage }}
+      </div>
     </article>
   </section>
 </template>
