@@ -1,62 +1,62 @@
 # TicketFlow
 
-TicketFlow is a small full-stack ticket management MVP built for portfolio and interview discussion. It demonstrates a focused CRUD workflow: a user can view, filter, create, edit, and delete support tickets through a Vue frontend connected to an ASP.NET Core Web API.
+TicketFlow 是一個作品集導向的小型全端工單管理 MVP。它展示一個聚焦的 CRUD 流程：使用者可以透過 Vue 前端查看、篩選、建立、編輯與刪除客服工單，資料則由 ASP.NET Core Web API 提供。
 
-The project is intentionally scoped as an MVP. It favors clear product boundaries, readable implementation, and end-to-end data flow over enterprise features.
+這個專案刻意維持 MVP 範圍，重點放在清楚的產品邊界、可讀性高的實作，以及前端、後端、資料庫之間的端到端資料流。
 
-## Tech Stack
+## 技術棧
 
-- Frontend: Vue 3, TypeScript, Vue Router, Vite
-- Backend: ASP.NET Core Web API
-- Data access: EF Core
-- Database: SQLite
-- API style: REST JSON endpoints
+- 前端：Vue 3、TypeScript、Vue Router、Vite
+- 後端：ASP.NET Core Web API
+- 資料存取：EF Core
+- 資料庫：SQLite
+- API 形式：REST JSON endpoints
 
-## Completed MVP Features
+## 已完成的 MVP 功能
 
-- Ticket list loaded from the backend API
-- Status, priority, and keyword filters using backend-supported query params
-- Ticket detail page loaded by ticket id
-- Create ticket form
-- Edit ticket form
-- Delete ticket action with confirmation
-- Loading, error, empty, and not-found states across the main ticket flows
+- 從後端 API 載入工單清單
+- 使用後端支援的 `status`、`priority`、`keyword` query params 篩選工單
+- 依照工單 id 載入工單詳細頁
+- 建立工單表單
+- 編輯工單表單
+- 帶有確認步驟的刪除工單操作
+- 主要工單流程中的 loading、error、empty 與 not found 狀態
 
-## Data Flow
+## 資料流
 
-The frontend calls the API service in `frontend/src/api/tickets.ts`. That service sends HTTP requests to the ASP.NET Core backend under `/api/tickets`.
+前端透過 `frontend/src/api/tickets.ts` 內的 API service 呼叫後端。這層 service 會把 Vue view 的操作轉成 HTTP request，送到 ASP.NET Core 後端的 `/api/tickets` API。
 
-The backend handles ticket CRUD through minimal API endpoints, uses EF Core for data access, and persists ticket records in SQLite. Ticket data flows back to the Vue views as JSON and is rendered through focused pages and reusable badge/table components.
+後端使用 minimal API endpoints 處理工單 CRUD，透過 EF Core 存取資料，並將工單資料保存到 SQLite。資料會以 JSON 回傳給前端，再由 Vue routes、views、badge 元件與 table 元件呈現。
 
-## Architecture
+## 架構概覽
 
 ```text
 frontend/
-  Vue 3 app, routes, views, components, and API client
+  Vue 3 app、routes、views、components、API client
 
 backend/
-  ASP.NET Core Web API, EF Core DbContext, models, and migrations
+  ASP.NET Core Web API、EF Core DbContext、models、migrations
 ```
 
-The frontend keeps state local to each page for this MVP. The backend keeps the ticket API simple and aligned to the current ticket model: title, description, status, priority, assignee, created time, and updated time.
+目前前端狀態主要保留在各自頁面中，符合 MVP 的簡單需求。後端 API 維持在目前工單模型上：title、description、status、priority、assignee、createdAt、updatedAt。
 
-## API Contract Summary
+## API Contract 摘要
 
 - `GET /api/tickets`
-  - Returns the ticket list.
-  - Supports `status`, `priority`, and `keyword` query params.
+  - 取得工單清單
+  - 支援 `status`、`priority`、`keyword` query params
 - `GET /api/tickets/{id}`
-  - Returns one ticket by id.
+  - 依照 id 取得單一工單
 - `POST /api/tickets`
-  - Creates a ticket.
+  - 建立工單
 - `PUT /api/tickets/{id}`
-  - Updates a ticket.
+  - 更新工單
 - `DELETE /api/tickets/{id}`
-  - Deletes a ticket.
+  - 刪除工單
 
-## Local Development
+## 本機開發
 
-Run the backend:
+啟動後端：
 
 ```bash
 cd backend
@@ -64,7 +64,7 @@ dotnet restore
 dotnet run
 ```
 
-Run the frontend:
+啟動前端：
 
 ```bash
 cd frontend
@@ -72,37 +72,37 @@ npm install
 npm run dev
 ```
 
-Build the frontend:
+建置前端：
 
 ```bash
 cd frontend
 npm run build
 ```
 
-## Portfolio Story
+## 作品集與面試故事
 
-TicketFlow is a compact example of taking a product slice from planning to working full-stack MVP. The work is organized around small GitHub Issues, each with a narrow scope, validation step, and pull request.
+TicketFlow 展示如何把一個產品切片，從規劃推進到可操作的全端 MVP。開發過程以小型 GitHub Issues 為單位，每個 Issue 都有明確 scope、驗證方式與對應 pull request。
 
-The project shows:
+這個專案可以用來說明：
 
-- API contract alignment between frontend and backend
-- Real API integration instead of mock data
-- Incremental CRUD workflow delivery
-- Simple route and view boundaries
-- Practical loading, error, and not-found handling
-- Scope discipline for issue-driven development
+- 前後端 API contract 對齊
+- 從 mock data 轉向真實 API 整合
+- 逐步交付 CRUD workflow
+- Vue route、view、component 的簡單邊界
+- loading、error、not found 等基本產品狀態處理
+- 以 Issue 為單位維持實作範圍紀律
 
-## Out of Scope
+## 目前不在範圍內
 
-These are not implemented in the current MVP:
+目前 MVP 尚未實作以下能力：
 
-- Authentication or roles
-- Docker setup
-- Deployment setup
-- CI setup
-- Notifications
-- File uploads
-- Reporting or analytics
-- Multi-tenant or billing workflows
+- 身分驗證或角色權限
+- Docker 設定
+- 部署設定
+- CI 設定
+- 通知功能
+- 檔案上傳
+- 報表或分析
+- 多租戶或計費流程
 
-Future work can add these capabilities after the core ticket workflow remains stable.
+後續可以在核心工單流程穩定後，再逐步加入這些能力。
