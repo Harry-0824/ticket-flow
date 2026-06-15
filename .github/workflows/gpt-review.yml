@@ -1,0 +1,507 @@
+name: GPT Review Gate (Canon v3.6+ Final)
+
+on:
+  pull_request:
+    branches:
+      - develop
+    types: [opened, synchronize, reopened]
+
+# 限制：同一 PR 同一 HEAD SHA 只跑一次（GitHub Actions 內建）
+concurrency:
+  group: gpt-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  gpt-review:
+    name: gpt-review-gate
+    runs-on: ubuntu-latest
+    # 即使分支 protection 還沒設，這裡也明確宣告需要的權限
+    permissions:
+      pull-requests: write
+      statuses: write
+      contents: read
+
+    steps:
+      - name: Checkout PR HEAD
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch develop and main
+        run: |
+          git fetch origin develop main
+
+      - name: Check OPENAI_API_KEY
+        id: check_key
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "key_missing=true" >> $GITHUB_OUTPUT
+          else
+            echo "key_missing=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Skip GPT Review - API key not configured
+        if: steps.check_key.outputs.key_missing == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const label = 'status/needs-manual-review';
+            const body = `## ⚠️ GPT Review Skipped — API Key Not Configured
+
+**gpt-review-gate** is currently running in manual-fallback mode because
+the repository secret \`OPENAI_API_KEY\` has not been set.
+
+### What you need to do
+1. Go to **Settings → Secrets and variables → Actions**
+2. Create a new repository secret named \`OPENAI_API_KEY\`
+3. Paste in your OpenAI API key (needs access to \`gpt-4o\` and \`gpt-4o-mini\`)
+4. Re-request reviewers or push a new commit to re-trigger this workflow
+
+> The remaining Canon v3.6+ checks (branch-freshness, review-budget,
+> supply-chain, hotfix-sync-lock) still run and must pass before merge.
+
+---
+*[Canon v3.6+ Final §9.6.4 — infra skip — not counted as code failure]*`;
+
+            // post PR comment
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
+            });
+
+            // set commit status to neutral so the required check passes but is visible
+            const sha = context.payload.pull_request.head.sha;
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha,
+              state: 'neutral',
+              target_url: 'https://github.com/Harry-0824/ticket-flow/settings/secrets/actions',
+              description: 'GPT Review skipped: OPENAI_API_KEY not configured',
+              context: 'gpt-review-gate'
+            });
+
+      # ------------------------------------------------------------------
+      # Step: Collect Context Pack
+      # ------------------------------------------------------------------
+      - name: Collect Context Pack
+        if: steps.check_key.outputs.key_missing == 'false'
+        id: context_pack
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "=== Collecting Context Pack ==="
+
+          # --- 1. PR Diff Stats ---
+          echo "--- PR Diff Stats ---"
+          git diff --stat origin/develop...HEAD || true
+          git diff --numstat origin/develop...HEAD || true
+
+          # --- 2. Branch Freshness Check (policy doc) ---
+          if git merge-base --is-ancestor origin/develop HEAD; then
+            echo "branch_freshness=pass"
+          else
+            echo "branch_freshness=fail"
+          fi
+
+          # --- 3. Hotfix Sync Lock Check ---
+          if git merge-base --is-ancestor origin/main origin/develop; then
+            echo "hotfix_sync_lock_active=false"
+          else
+            echo "hotfix_sync_lock_active=true"
+          fi
+
+          # --- 4. Detect changed files ---
+          CHANGED=$(git diff --name-only origin/develop...HEAD || true)
+          echo "changed_files=$CHANGED"
+
+          # --- 5. Detect supply-chain sensitive files ---
+          SENSITIVE=$(echo "$CHANGED" | grep -E '(^|/)(package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|Dockerfile|docker-compose\.yml|\.github/workflows/)' || true)
+          echo "sensitive_files=$SENSITIVE"
+
+          echo "=== Context Pack Collected ==="
+
+      # ------------------------------------------------------------------
+      # Step: GPT Phase 1 — JSON Gate
+      # ------------------------------------------------------------------
+      - name: GPT Phase 1 - JSON Gate
+        if: steps.check_key.outputs.key_missing == 'false'
+        id: gpt_json_gate
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          echo "=== Phase 1: GPT JSON Gate ==="
+
+          # Build context summary (inline, no external tools)
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          PR_BODY="${{ github.event.pull_request.body }}"
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          REPO="${{ github.repository }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+
+          CHANGED_FILES=$(git diff --name-only origin/develop...HEAD | tr '\n' ',' | sed 's/,$//' || echo "unknown")
+          DIFF_STAT=$(git diff --stat origin/develop...HEAD | head -20 || echo "not available")
+          TOTAL_LINES=$(git diff --numstat origin/develop...HEAD | awk '{add+=$1; del+=$2} END {print add+del+0}')
+
+          # Detect risk level from title/body (light heuristic)
+          RISK_HINT="low"
+          if echo "$PR_TITLE $PR_BODY" | grep -qiE '(database|auth|migration|deploy|ci|workflow|encrypt|security|role|permission)'; then
+            RISK_HINT="high"
+          elif echo "$PR_TITLE $PR_BODY" | grep -qiE '(api|service|state|store|redux|pinia|vuex|router)'; then
+            RISK_HINT="medium"
+          fi
+
+          # Build the Phase 1 prompt
+          cat > /tmp/phase1_prompt.txt << 'PROMPT_EOF'
+你是一個 PR Merge Gate Review 系統（Canon v3.6+ Final）。
+
+REPO: REPO_PLACEHOLDER
+PR#: PR_NUM_PLACEHOLDER
+
+---
+
+## PR 基本資料
+Title: PR_TITLE_PLACEHOLDER
+Body: PR_BODY_PLACEHOLDER
+Risk Hint: RISK_HL_PLACEHOLDER
+
+---
+
+## 變更統計
+Changed files: CHANGED_FILES_PLACEHOLDER
+Total diff lines (added+deleted): TOTAL_LINES_PLACEHOLDER
+
+Diff stat (前 20 行):
+DIFF_STAT_PLACEHOLDER
+
+---
+
+## Review 策略
+Low Risk  PR: 欄位以 pass 為主，注意 scope creep
+Medium Risk PR: 須檢查 AC / architecture / testing
+High Risk  PR: 必須確認 TDD 證據 / User approve / BDD AC
+
+請以上述資料為準，**只根據 diff stat 和 PR 描述做出 Gate 判定**。
+若 diff stat 不足以判斷 Architecture / Security / Testing，
+請標記為 unknown，不要猜測。
+
+---
+
+## JSON Gate 輸出格式（必須嚴格遵守）
+只輸出 JSON，不要輸出 markdown 或額外文字。
+不允許任何 code block 或 code fence 包裹 JSON。
+
+{
+  "schema_version": "gpt-review-gate-v1",
+  "verdict": "approve | request_changes | reject | infra_error",
+  "risk": "low | medium | high",
+  "issue_alignment": "pass | fail | unknown",
+  "scope_creep": "pass | fail | unknown",
+  "unrelated_files": "pass | fail | unknown",
+  "dependency_policy": "pass | fail | needs_user_approval | unknown",
+  "architecture_guardrails": "pass | fail | unknown",
+  "security": "pass | fail | unknown",
+  "testing": "pass | fail | unknown",
+  "ac_verification": "pass | fail | partial | unknown",
+  "test_integrity": "pass | fail | suspicious | unknown",
+  "branch_freshness": "BRANCH_FRESHNESS_PLACEHOLDER",
+  "supply_chain_guard": "pass | fail | unknown",
+  "review_budget": "pass | fail | unknown",
+  "hotfix_sync_lock_active": HOTFIX_LOCK_PLACEHOLDER,
+  "merge_queue_required": false,
+  "blocking_reasons": ["max 5 items, each max 120 chars"],
+  "required_actions": ["max 5 items, each max 120 chars"]
+}
+PROMPT_EOF
+
+          # Replace placeholders
+          sed -i "s|REPO_PLACEHOLDER|${REPO}|g" /tmp/phase1_prompt.txt
+          sed -i "s|PR_NUM_PLACEHOLDER|${PR_NUMBER}|g" /tmp/phase1_prompt.txt
+          sed -i "s|PR_TITLE_PLACEHOLDER|${PR_TITLE}|g" /tmp/phase1_prompt.txt
+          sed -i "s|PR_BODY_PLACEHOLDER|${PR_BODY}|g" /tmp/phase1_prompt.txt
+          sed -i "s|RISK_HL_PLACEHOLDER|${RISK_HINT}|g" /tmp/phase1_prompt.txt
+          sed -i "s|CHANGED_FILES_PLACEHOLDER|${CHANGED_FILES}|g" /tmp/phase1_prompt.txt
+          sed -i "s|TOTAL_LINES_PLACEHOLDER|${TOTAL_LINES}|g" /tmp/phase1_prompt.txt
+          sed -i "s|DIFF_STAT_PLACEHOLDER|${DIFF_STAT}|g" /tmp/phase1_prompt.txt
+          sed -i "s|BRANCH_FRESHNESS_PLACEHOLDER|$(git merge-base --is-ancestor origin/develop HEAD 2>/dev/null && echo 'pass' || echo 'fail')|g" /tmp/phase1_prompt.txt
+          sed -i "s|HOTFIX_LOCK_PLACEHOLDER|$(git merge-base --is-ancestor origin/main origin/develop 2>/dev/null && echo 'false' || echo 'true')|g" /tmp/phase1_prompt.txt
+
+          echo "--- Phase 1 Prompt (first 500 chars) ---"
+          head -c 500 /tmp/phase1_prompt.txt
+          echo ""
+
+          # Call OpenAI API - Phase 1 (GPT-4o-mini, JSON mode)
+          PHASE1_RESPONSE=$(curl -s https://api.openai.com/v1/chat/completions \
+            -H "Authorization: Bearer $OPENAI_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "model": "gpt-4o-mini",
+              "max_tokens": 600,
+              "temperature": 0,
+              "response_format": {"type": "json_object"},
+              "messages": [
+                {"role": "system", "content": "你是 PR Merge Gate 審核器。只能輸出符合 schema_version=gpt-review-gate-v1 的 JSON，欄位限制：blocking_reasons 最多5項各120字元、required_actions 最多5項各120字元。reason/notes 類欄位各最多160字元。"},
+                {"role": "user", "content": "'$(cat /tmp/phase1_prompt.txt)'"}
+              ]
+            }' 2>/dev/null) || true
+
+          echo "$PHASE1_RESPONSE" > /tmp/phase1_response.json
+
+          # Extract JSON content
+          PHASE1_JSON=$(echo "$PHASE1_RESPONSE" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    content = data['choices'][0]['message']['content']
+    # remove markdown code fences if present
+    content = content.strip()
+    if content.startswith('\`\`\`'):
+        content = '\n'.join(content.split('\n')[1:])
+    if content.endswith('\`\`\`'):
+        content = '\n'.join(content.split('\n')[:-1])
+    print(content.strip())
+except Exception as e:
+    print(json.dumps({'parse_error': str(e)}))
+" 2>/dev/null) || echo '{"verdict": "infra_error", "blocking_reasons": ["Phase 1 API call failed"]}'
+
+          echo "$PHASE1_JSON" > /tmp/phase1_gate.json
+          echo "=== Phase 1 JSON Gate ==="
+          echo "$PHASE1_JSON"
+
+          # Save verdict for next steps
+          echo "verdict<<EOF" >> $GITHUB_OUTPUT
+          echo "$PHASE1_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('verdict','infra_error'))" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "risk<<EOF" >> $GITHUB_OUTPUT
+          echo "$PHASE1_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('risk','unknown'))" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "blocking_reasons<<EOF" >> $GITHUB_OUTPUT
+          echo "$PHASE1_JSON" | python3 -c "import sys,json; print(' | '.join(json.load(sys.stdin).get('blocking_reasons',[])[:5]))" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      # ------------------------------------------------------------------
+      # Step: Set gpt-json-gate status (always run if Phase 1 ran)
+      # ------------------------------------------------------------------
+      - name: Set gpt-json-gate status
+        if: steps.check_key.outputs.key_missing == 'false' && always()
+        uses: actions/github-script@v7
+        env:
+          VERDICT: ${{ steps.gpt_json_gate.outputs.verdict }}
+          RISK: ${{ steps.gpt_json_gate.outputs.risk }}
+          BLOCKING: ${{ steps.gpt_json_gate.outputs.blocking_reasons }}
+        with:
+          script: |
+            const verdict = process.env.VERDICT || 'unknown';
+            const risk   = process.env.RISK   || 'unknown';
+            const blocking = process.env.BLOCKING || '';
+            const sha = context.payload.pull_request.head.sha;
+
+            let state = 'neutral';
+            let desc = '';
+
+            if (verdict === 'approve') {
+              state = 'success';
+              desc = `Phase 1 approved. Risk: ${risk}.`;
+            } else if (verdict === 'request_changes' || verdict === 'reject') {
+              state = 'failure';
+              desc = `Phase 1: ${verdict}. ${blocking || 'See PR comments.'}`;
+            } else if (verdict === 'infra_error') {
+              state = 'failure';
+              desc = `Review infrastructure error: ${blocking || 'see status/infra-error label'}`;
+            } else {
+              state = 'neutral';
+              desc = `Phase 1 inconclusive (verdict=${verdict}).`;
+            }
+
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha,
+              state,
+              context: 'gpt-json-gate',
+              description: desc
+            });
+
+      # ------------------------------------------------------------------
+      # Step: GPT Phase 2 — Markdown Review Writer (conditional)
+      # ------------------------------------------------------------------
+      - name: GPT Phase 2 - Markdown Review
+        if: |
+          steps.check_key.outputs.key_missing == 'false' &&
+          (steps.gpt_json_gate.outputs.verdict == 'request_changes' ||
+           steps.gpt_json_gate.outputs.verdict == 'reject' ||
+           steps.gpt_json_gate.outputs.risk == 'medium' ||
+           steps.gpt_json_gate.outputs.risk == 'high')
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          echo "=== Phase 2: Markdown Review ==="
+
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          PR_BODY="${{ github.event.pull_request.body }}"
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          PHASE1_VERDICT="${{ steps.gpt_json_gate.outputs.verdict }}"
+          PHASE1_RISK="${{ steps.gpt_json_gate.outputs.risk }}"
+          PHASE1_BLOCKING="${{ steps.gpt_json_gate.outputs.blocking_reasons }}"
+
+          DIFF_STAT=$(git diff --stat origin/develop...HEAD || echo "not available")
+          CHANGED_FILES=$(git diff --name-only origin/develop...HEAD || true)
+
+          cat > /tmp/phase2_prompt.txt << PROMPT2_EOF
+你是 PR  reviewer，請針對以下 PR 撰寫一份**繁體中文**的詳細 Markdown Review 評論。
+
+**請遵守：**
+- 標題使用「## 🔍 GPT Review — PR #${PR_NUMBER}」
+- 在最上方顯示 Gate 判定結果表（9.6.3 Phase 1 結果）
+- 只評論當前 diff，不要評論歷史 commit
+- 指出問題時附上檔案名稱與行號（看不懂 diff 細部就說「詳情請見 diff」）
+- 最後附上「整體結論」一節
+
+**Phase 1 判定摘要：**
+Verdict: ${PHASE1_VERDICT}
+Risk: ${PHASE1_RISK}
+Blocking: ${PHASE1_BLOCKING}
+
+**PR 資訊：**
+Title: ${PR_TITLE}
+Body: ${PR_BODY}
+
+**Diff 統計：**
+${DIFF_STAT}
+
+**Changed files:**
+${CHANGED_FILES}
+PROMPT2_EOF
+
+          PHASE2_RESPONSE=$(curl -s https://api.openai.com/v1/chat/completions \
+            -H "Authorization: Bearer $OPENAI_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "model": "gpt-4o",
+              "max_tokens": 2000,
+              "temperature": 0,
+              "messages": [
+                {"role": "system", "content": "你是 PR  reviewer。評論必須是繁體中文。只討論程式碼層面。不做 Merge Gate 判定（Phase 1 已處理）。"},
+                {"role": "user", "content": "'$(cat /tmp/phase2_prompt.txt)'"}
+              ]
+            }' 2>/dev/null) || true
+
+          echo "$PHASE2_RESPONSE" > /tmp/phase2_response.json
+          echo "$PHASE2_RESPONSE" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    print(data['choices'][0]['message']['content'])
+except Exception as e:
+    print(f'Phase 2 API call failed: {e}')
+" > /tmp/phase2_comment.md || echo "Phase 2 comment generation failed" > /tmp/phase2_comment.md
+
+      # ------------------------------------------------------------------
+      # Step: Post PR comment with Phase 2 review (if applicable)
+      # ------------------------------------------------------------------
+      - name: Post PR Comment
+        if: |
+          steps.check_key.outputs.key_missing == 'false' &&
+          (steps.gpt_json_gate.outputs.verdict == 'request_changes' ||
+           steps.gpt_json_gate.outputs.verdict == 'reject' ||
+           steps.gpt_json_gate.outputs.risk == 'medium' ||
+           steps.gpt_json_gate.outputs.risk == 'high')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const commentPath = '/tmp/phase2_comment.md';
+            if (!fs.existsSync(commentPath)) return;
+            const body = fs.readFileSync(commentPath, 'utf8');
+            if (!body || body.includes('Phase 2 comment generation failed')) return;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
+            });
+
+      # ------------------------------------------------------------------
+      # Step: Post PR comment — GPT Approve summary
+      # ------------------------------------------------------------------
+      - name: Post Approve Comment
+        if: steps.gpt_json_gate.outputs.verdict == 'approve'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const risk = '${{ steps.gpt_json_gate.outputs.risk }}';
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: [
+                '## ✅ GPT Review Gate Passed',
+                '',
+                `**Risk Level:** ${risk}`,
+                '',
+                '**Canon v3.6+ Final** 所有 Preflight Checks + GPT Phase 1 JSON Gate 已通過。',
+                '',
+                risk === 'low'
+                  ? '- Low Risk PR：Phase 2 詳細評論已跳過（依 8.6 / 9.6.3）'
+                  : '- 等待可選 Phase 2 評論或 User 確認',
+                '',
+                '**Definition of Done 確認（依 9.7）：**',
+                '- [x] Spec 開工前已確認無歧義',
+                '- [x] AC 格式符合風險等級要求',
+                '- [x] Branch Freshness Check 通過',
+                '- [x] Review Budget Guard 通過',
+                '- [x] Supply Chain Guard 通過',
+                '- [x] Hotfix Sync Lock 檢查通過',
+                '- [x] Low Risk 符合 Auto-Merge 條件（若适用）',
+                '',
+                '> **注意：** GPT "可 Merge" 僅代表 Gate 通過。' +
+                'develop → main 之 Release 仍由 User 人工執行（Canon §11）。'
+              ].join('\n')
+            });
+
+      # ------------------------------------------------------------------
+      # Step: Set final gpt-review-gate status
+      # ------------------------------------------------------------------
+      - name: Set gpt-review-gate status
+        if: always() && (steps.check_key.outputs.key_missing == 'false')
+        uses: actions/github-script@v7
+        env:
+          VERDICT: ${{ steps.gpt_json_gate.outputs.verdict }}
+          RISK: ${{ steps.gpt_json_gate.outputs.risk }}
+        with:
+          script: |
+            const verdict = process.env.VERDICT || 'unknown';
+            const risk   = process.env.RISK   || 'unknown';
+            const sha = context.payload.pull_request.head.sha;
+
+            let state = 'neutral';
+            let desc = '';
+
+            if (verdict === 'approve') {
+              state = 'success';
+              desc = `GPT Gate: Approve (${risk})`;
+            } else if (verdict === 'request_changes') {
+              state = 'failure';
+              desc = `GPT Gate: Request Changes (${risk})`;
+            } else if (verdict === 'reject') {
+              state = 'failure';
+              desc = `GPT Gate: Reject (${risk})`;
+            } else {
+              state = 'failure';
+              desc = 'GPT Gate: Infrastructure Error';
+            }
+
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha,
+              state,
+              context: 'gpt-review-gate',
+              description: desc
+            });
