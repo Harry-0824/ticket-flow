@@ -34,12 +34,12 @@ jobs:
       - name: Check OPENAI_API_KEY
         id: check_key
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           if [ -z "$OPENAI_API_KEY" ]; then
-            echo "key_missing=true" >> $GITHUB_OUTPUT
+            echo "key_missing=true" >> "$GITHUB_OUTPUT"
           else
-            echo "key_missing=false" >> $GITHUB_OUTPUT
+            echo "key_missing=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Skip GPT Review - API key not configured
@@ -81,7 +81,7 @@ the repository secret \`OPENAI_API_KEY\` has not been set.
               sha,
               state: 'neutral',
               target_url: 'https://github.com/Harry-0824/ticket-flow/settings/secrets/actions',
-              description: 'GPT Review skipped: OPENAI_API_KEY not configured',
+              description: 'GPT Review skipped: OPENROUTER_API_KEY not configured',
               context: 'gpt-review-gate'
             });
 
@@ -92,7 +92,7 @@ the repository secret \`OPENAI_API_KEY\` has not been set.
         if: steps.check_key.outputs.key_missing == 'false'
         id: context_pack
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "=== Collecting Context Pack ==="
@@ -133,7 +133,7 @@ the repository secret \`OPENAI_API_KEY\` has not been set.
         if: steps.check_key.outputs.key_missing == 'false'
         id: gpt_json_gate
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           echo "=== Phase 1: GPT JSON Gate ==="
 
@@ -236,11 +236,11 @@ PROMPT_EOF
           echo ""
 
           # Call OpenAI API - Phase 1 (GPT-4o-mini, JSON mode)
-          PHASE1_RESPONSE=$(curl -s https://api.openai.com/v1/chat/completions \
+          PHASE1_RESPONSE=$(curl -s https://openrouter.ai/api/v1/chat/completions \
             -H "Authorization: Bearer $OPENAI_API_KEY" \
             -H "Content-Type: application/json" \
             -d '{
-              "model": "gpt-4o-mini",
+              "model": "openai/gpt-4o-mini",
               "max_tokens": 600,
               "temperature": 0,
               "response_format": {"type": "json_object"},
@@ -274,15 +274,15 @@ except Exception as e:
           echo "$PHASE1_JSON"
 
           # Save verdict for next steps
-          echo "verdict<<EOF" >> $GITHUB_OUTPUT
-          echo "$PHASE1_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('verdict','infra_error'))" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-          echo "risk<<EOF" >> $GITHUB_OUTPUT
-          echo "$PHASE1_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('risk','unknown'))" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-          echo "blocking_reasons<<EOF" >> $GITHUB_OUTPUT
-          echo "$PHASE1_JSON" | python3 -c "import sys,json; print(' | '.join(json.load(sys.stdin).get('blocking_reasons',[])[:5]))" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          echo "verdict<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$PHASE1_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('verdict','infra_error'))" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          echo "risk<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$PHASE1_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('risk','unknown'))" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          echo "blocking_reasons<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$PHASE1_JSON" | python3 -c "import sys,json; print(' | '.join(json.load(sys.stdin).get('blocking_reasons',[])[:5]))" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
 
       # ------------------------------------------------------------------
       # Step: Set gpt-json-gate status (always run if Phase 1 ran)
@@ -338,7 +338,7 @@ except Exception as e:
            steps.gpt_json_gate.outputs.risk == 'medium' ||
            steps.gpt_json_gate.outputs.risk == 'high')
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           echo "=== Phase 2: Markdown Review ==="
 
@@ -378,11 +378,11 @@ ${DIFF_STAT}
 ${CHANGED_FILES}
 PROMPT2_EOF
 
-          PHASE2_RESPONSE=$(curl -s https://api.openai.com/v1/chat/completions \
+          PHASE2_RESPONSE=$(curl -s https://openrouter.ai/api/v1/chat/completions \
             -H "Authorization: Bearer $OPENAI_API_KEY" \
             -H "Content-Type: application/json" \
             -d '{
-              "model": "gpt-4o",
+              "model": "openai/gpt-4o",
               "max_tokens": 2000,
               "temperature": 0,
               "messages": [
