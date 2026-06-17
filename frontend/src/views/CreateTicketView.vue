@@ -9,6 +9,17 @@ const router = useRouter()
 
 const statusOptions: TicketStatus[] = ['Open', 'InProgress', 'Done', 'Archived']
 const priorityOptions: TicketPriority[] = ['Low', 'Medium', 'High']
+const statusLabels: Record<TicketStatus, string> = {
+  Open: '待處理',
+  InProgress: '處理中',
+  Done: '已完成',
+  Archived: '已封存',
+}
+const priorityLabels: Record<TicketPriority, string> = {
+  Low: '低',
+  Medium: '中',
+  High: '高',
+}
 
 const form = reactive<CreateTicketInput>({
   title: '',
@@ -25,7 +36,7 @@ const submitTicket = async () => {
   errorMessage.value = ''
 
   if (!form.title.trim() || !form.description.trim()) {
-    errorMessage.value = 'Title and description are required.'
+    errorMessage.value = '請填寫標題與描述。'
     return
   }
 
@@ -44,7 +55,7 @@ const submitTicket = async () => {
       createdTicket.id ? `/tickets/${createdTicket.id}` : '/tickets',
     )
   } catch {
-    errorMessage.value = 'Unable to create ticket. Please try again later.'
+    errorMessage.value = '目前無法建立工單，請稍後再試。'
   } finally {
     isSubmitting.value = false
   }
@@ -53,46 +64,46 @@ const submitTicket = async () => {
 
 <template>
   <section class="page">
-    <RouterLink to="/tickets">Back to tickets</RouterLink>
+    <RouterLink to="/tickets">返回工單列表</RouterLink>
 
-    <h1>Create ticket</h1>
-    <p>Add a new support ticket to the current queue.</p>
+    <h1>建立工單</h1>
+    <p>新增一筆支援工單，讓目前佇列保持清楚可追蹤。</p>
 
     <form class="ticket-form" @submit.prevent="submitTicket">
       <label>
-        Title
+        標題
         <input v-model="form.title" required />
       </label>
 
       <label>
-        Description
+        描述
         <textarea v-model="form.description" required rows="5"></textarea>
       </label>
 
       <label>
-        Status
+        狀態
         <select v-model="form.status">
           <option v-for="status in statusOptions" :key="status" :value="status">
-            {{ status }}
+            {{ statusLabels[status] }}
           </option>
         </select>
       </label>
 
       <label>
-        Priority
+        優先級
         <select v-model="form.priority">
           <option
             v-for="priority in priorityOptions"
             :key="priority"
             :value="priority"
           >
-            {{ priority }}
+            {{ priorityLabels[priority] }}
           </option>
         </select>
       </label>
 
       <label>
-        Assignee
+        負責人
         <input v-model="form.assignee" />
       </label>
 
@@ -101,7 +112,7 @@ const submitTicket = async () => {
       </div>
 
       <button type="submit" :disabled="isSubmitting">
-        {{ isSubmitting ? 'Creating...' : 'Create ticket' }}
+        {{ isSubmitting ? '建立中...' : '建立工單' }}
       </button>
     </form>
   </section>
