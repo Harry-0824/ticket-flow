@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json.Serialization;
 using TicketFlow.Api.Data;
 using TicketFlow.Api.Models;
 
@@ -6,6 +7,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<TicketFlowDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("TicketFlow")));
+builder.Services.ConfigureHttpJsonOptions(options =>
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
