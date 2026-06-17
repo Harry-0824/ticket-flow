@@ -84,15 +84,23 @@ onMounted(async () => {
       找不到此工單。
     </div>
 
-    <article v-else-if="ticket" class="placeholder-panel">
-      <h1>{{ ticket.title }}</h1>
-      <p>{{ ticket.description }}</p>
-      <p>
+    <article v-else-if="ticket" class="ticket-detail-card">
+      <div class="ticket-detail-header">
+        <div>
+          <h1>{{ ticket.title }}</h1>
+          <p>{{ ticket.description }}</p>
+        </div>
+        <RouterLink class="secondary-link" :to="`/tickets/${ticket.id}/edit`">
+          編輯工單
+        </RouterLink>
+      </div>
+
+      <div class="badge-row" aria-label="工單狀態與優先級">
         <StatusBadge :status="ticket.status" />
         <PriorityBadge :priority="ticket.priority" />
-      </p>
+      </div>
 
-      <dl>
+      <dl class="metadata-grid">
         <div>
           <dt>負責人</dt>
           <dd>{{ ticket.assignee || '未指派' }}</dd>
@@ -119,7 +127,7 @@ onMounted(async () => {
       </div>
 
       <div v-if="isConfirmingDelete" class="delete-confirmation">
-        <p>此操作無法復原。</p>
+        <p>此操作無法復原，刪除後會回到工單列表。</p>
         <button
           type="button"
           class="danger-button"

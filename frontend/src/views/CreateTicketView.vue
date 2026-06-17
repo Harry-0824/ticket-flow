@@ -70,14 +70,24 @@ const submitTicket = async () => {
     <p>新增一筆支援工單，讓目前佇列保持清楚可追蹤。</p>
 
     <form class="ticket-form" @submit.prevent="submitTicket">
+      <div class="form-intro">
+        <strong>工單內容</strong>
+        <span>標題與描述是必填欄位，其餘欄位可依目前狀態調整。</span>
+      </div>
+
       <label>
         標題
-        <input v-model="form.title" required />
+        <input v-model="form.title" required placeholder="例如：登入頁錯誤" />
       </label>
 
       <label>
         描述
-        <textarea v-model="form.description" required rows="5"></textarea>
+        <textarea
+          v-model="form.description"
+          required
+          rows="5"
+          placeholder="描述使用者遇到的問題、重現步驟或需要協助的內容"
+        ></textarea>
       </label>
 
       <label>
@@ -104,16 +114,19 @@ const submitTicket = async () => {
 
       <label>
         負責人
-        <input v-model="form.assignee" />
+        <input v-model="form.assignee" placeholder="未指派可留空" />
       </label>
 
       <div v-if="errorMessage" class="form-error" role="alert">
         {{ errorMessage }}
       </div>
 
-      <button type="submit" :disabled="isSubmitting">
-        {{ isSubmitting ? '建立中...' : '建立工單' }}
-      </button>
+      <div class="form-actions">
+        <button type="submit" :disabled="isSubmitting">
+          {{ isSubmitting ? '建立中...' : '建立工單' }}
+        </button>
+        <RouterLink class="secondary-link" to="/tickets">取消</RouterLink>
+      </div>
     </form>
   </section>
 </template>
