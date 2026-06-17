@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { RouterLink } from 'vue-router'
 import type { Ticket } from '../types/ticket'
 import PriorityBadge from './PriorityBadge.vue'
 import StatusBadge from './StatusBadge.vue'
@@ -30,7 +31,9 @@ const formatDate = (date: string) =>
       <tbody>
         <tr v-for="ticket in tickets" :key="ticket.id">
           <td>
-            <div class="ticket-title">{{ ticket.title }}</div>
+            <RouterLink class="ticket-title" :to="`/tickets/${ticket.id}`">
+              {{ ticket.title }}
+            </RouterLink>
             <div class="ticket-description">{{ ticket.description }}</div>
           </td>
           <td><StatusBadge :status="ticket.status" /></td>

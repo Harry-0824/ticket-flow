@@ -124,6 +124,11 @@ onMounted(async () => {
       <p>更新工單內容，儲存後回到工單詳細頁。</p>
 
       <form class="ticket-form" @submit.prevent="submitTicket">
+        <div class="form-intro">
+          <strong>工單內容</strong>
+          <span>調整目前工單的描述、狀態、優先級與負責人。</span>
+        </div>
+
         <label>
           標題
           <input v-model="form.title" required />
@@ -162,16 +167,24 @@ onMounted(async () => {
 
         <label>
           負責人
-          <input v-model="form.assignee" />
+          <input v-model="form.assignee" placeholder="未指派可留空" />
         </label>
 
         <div v-if="submitErrorMessage" class="form-error" role="alert">
           {{ submitErrorMessage }}
         </div>
 
-        <button type="submit" :disabled="isSubmitting">
-          {{ isSubmitting ? '儲存中...' : '儲存變更' }}
-        </button>
+        <div class="form-actions">
+          <button type="submit" :disabled="isSubmitting">
+            {{ isSubmitting ? '儲存中...' : '儲存變更' }}
+          </button>
+          <RouterLink
+            class="secondary-link"
+            :to="ticketId ? `/tickets/${ticketId}` : '/tickets'"
+          >
+            取消
+          </RouterLink>
+        </div>
       </form>
     </template>
   </section>
