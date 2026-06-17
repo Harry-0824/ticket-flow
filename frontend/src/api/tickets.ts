@@ -22,7 +22,7 @@ export class TicketApiError extends Error {
   }
 }
 
-const buildQueryString = (params: TicketQueryParams = {}) => {
+export const buildTicketQueryString = (params: TicketQueryParams = {}) => {
   const searchParams = new URLSearchParams()
 
   if (params.status) {
@@ -58,7 +58,7 @@ const requestJson = async <T>(url: string, init?: RequestInit): Promise<T> => {
 }
 
 export const getTickets = (params?: TicketQueryParams) =>
-  requestJson<Ticket[]>(ticketsUrl(buildQueryString(params)))
+  requestJson<Ticket[]>(ticketsUrl(buildTicketQueryString(params)))
 
 export const getTicketById = (id: Ticket['id']) =>
   requestJson<Ticket>(ticketsUrl(`/${id}`))
