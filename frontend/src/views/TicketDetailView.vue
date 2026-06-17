@@ -18,7 +18,7 @@ const isNotFound = ref(false)
 const isConfirmingDelete = ref(false)
 
 const formatDateTime = (date: string) =>
-  new Intl.DateTimeFormat('en', {
+  new Intl.DateTimeFormat('zh-TW', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -38,8 +38,7 @@ const deleteCurrentTicket = async () => {
     await deleteTicket(ticket.value.id)
     await router.push('/tickets')
   } catch {
-    deleteErrorMessage.value =
-      'Unable to delete this ticket. Please try again later.'
+    deleteErrorMessage.value = '目前無法刪除此工單，請稍後再試。'
   } finally {
     isDeleting.value = false
   }
@@ -62,7 +61,7 @@ onMounted(async () => {
       return
     }
 
-    errorMessage.value = 'Unable to load this ticket. Please try again later.'
+    errorMessage.value = '目前無法載入此工單，請稍後再試。'
   } finally {
     isLoading.value = false
   }
@@ -71,10 +70,10 @@ onMounted(async () => {
 
 <template>
   <section class="page">
-    <RouterLink to="/tickets">Back to tickets</RouterLink>
+    <RouterLink to="/tickets">返回工單列表</RouterLink>
 
     <div v-if="isLoading" class="placeholder-panel" role="status">
-      Loading ticket...
+      正在載入工單...
     </div>
 
     <div v-else-if="errorMessage" class="placeholder-panel" role="alert">
@@ -82,7 +81,7 @@ onMounted(async () => {
     </div>
 
     <div v-else-if="isNotFound" class="placeholder-panel">
-      Ticket not found.
+      找不到此工單。
     </div>
 
     <article v-else-if="ticket" class="placeholder-panel">
@@ -95,15 +94,15 @@ onMounted(async () => {
 
       <dl>
         <div>
-          <dt>Assignee</dt>
-          <dd>{{ ticket.assignee || 'Unassigned' }}</dd>
+          <dt>負責人</dt>
+          <dd>{{ ticket.assignee || '未指派' }}</dd>
         </div>
         <div>
-          <dt>Created</dt>
+          <dt>建立時間</dt>
           <dd>{{ formatDateTime(ticket.createdAt) }}</dd>
         </div>
         <div>
-          <dt>Updated</dt>
+          <dt>更新時間</dt>
           <dd>{{ formatDateTime(ticket.updatedAt) }}</dd>
         </div>
       </dl>
@@ -115,19 +114,19 @@ onMounted(async () => {
           class="danger-button"
           @click="isConfirmingDelete = true"
         >
-          Delete ticket
+          刪除工單
         </button>
       </div>
 
       <div v-if="isConfirmingDelete" class="delete-confirmation">
-        <p>This action cannot be undone.</p>
+        <p>此操作無法復原。</p>
         <button
           type="button"
           class="danger-button"
           :disabled="isDeleting"
           @click="deleteCurrentTicket"
         >
-          {{ isDeleting ? 'Deleting...' : 'Confirm delete' }}
+          {{ isDeleting ? '刪除中...' : '確認刪除' }}
         </button>
         <button
           type="button"
@@ -135,7 +134,7 @@ onMounted(async () => {
           :disabled="isDeleting"
           @click="isConfirmingDelete = false"
         >
-          Cancel
+          取消
         </button>
       </div>
 

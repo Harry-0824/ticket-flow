@@ -13,6 +13,17 @@ const keywordFilter = ref('')
 
 const statusOptions: TicketStatus[] = ['Open', 'InProgress', 'Done', 'Archived']
 const priorityOptions: TicketPriority[] = ['Low', 'Medium', 'High']
+const statusLabels: Record<TicketStatus, string> = {
+  Open: '待處理',
+  InProgress: '處理中',
+  Done: '已完成',
+  Archived: '已封存',
+}
+const priorityLabels: Record<TicketPriority, string> = {
+  Low: '低',
+  Medium: '中',
+  High: '高',
+}
 
 const loadTickets = async () => {
   isLoading.value = true
@@ -25,7 +36,7 @@ const loadTickets = async () => {
       keyword: keywordFilter.value.trim() || undefined,
     })
   } catch {
-    errorMessage.value = 'Unable to load tickets. Please try again later.'
+    errorMessage.value = '目前無法載入工單，請稍後再試。'
   } finally {
     isLoading.value = false
   }
@@ -45,53 +56,53 @@ onMounted(async () => {
 
 <template>
   <section class="page">
-    <h1>Tickets</h1>
-    <p>Review support tickets from the current ticket queue.</p>
+    <h1>工單列表</h1>
+    <p>檢視目前佇列中的支援工單，並依狀態、優先級或關鍵字篩選。</p>
 
     <form class="ticket-filters" @submit.prevent="loadTickets">
       <label>
-        Status
+        狀態
         <select v-model="statusFilter">
-          <option value="">All statuses</option>
+          <option value="">全部狀態</option>
           <option v-for="status in statusOptions" :key="status" :value="status">
-            {{ status }}
+            {{ statusLabels[status] }}
           </option>
         </select>
       </label>
 
       <label>
-        Priority
+        優先級
         <select v-model="priorityFilter">
-          <option value="">All priorities</option>
+          <option value="">全部優先級</option>
           <option
             v-for="priority in priorityOptions"
             :key="priority"
             :value="priority"
           >
-            {{ priority }}
+            {{ priorityLabels[priority] }}
           </option>
         </select>
       </label>
 
       <label>
-        Keyword
+        關鍵字
         <input
           v-model="keywordFilter"
           type="search"
-          placeholder="Search title or description"
+          placeholder="搜尋標題或描述"
         />
       </label>
 
       <div class="filter-actions">
-        <button type="submit">Apply</button>
+        <button type="submit">套用</button>
         <button type="button" class="secondary-button" @click="clearFilters">
-          Clear
+          清除
         </button>
       </div>
     </form>
 
     <div v-if="isLoading" class="placeholder-panel" role="status">
-      Loading tickets...
+      正在載入工單...
     </div>
 
     <div v-else-if="errorMessage" class="placeholder-panel" role="alert">
@@ -99,7 +110,7 @@ onMounted(async () => {
     </div>
 
     <div v-else-if="tickets.length === 0" class="placeholder-panel">
-      No tickets found.
+      沒有符合條件的工單。
     </div>
 
     <TicketTable v-else :tickets="tickets" />

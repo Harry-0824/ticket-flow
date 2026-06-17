@@ -10,6 +10,17 @@ const router = useRouter()
 
 const statusOptions: TicketStatus[] = ['Open', 'InProgress', 'Done', 'Archived']
 const priorityOptions: TicketPriority[] = ['Low', 'Medium', 'High']
+const statusLabels: Record<TicketStatus, string> = {
+  Open: '待處理',
+  InProgress: '處理中',
+  Done: '已完成',
+  Archived: '已封存',
+}
+const priorityLabels: Record<TicketPriority, string> = {
+  Low: '低',
+  Medium: '中',
+  High: '高',
+}
 
 const form = reactive<Required<UpdateTicketInput>>({
   title: '',
@@ -35,7 +46,7 @@ const submitTicket = async () => {
   }
 
   if (!form.title.trim() || !form.description.trim()) {
-    submitErrorMessage.value = 'Title and description are required.'
+    submitErrorMessage.value = '請填寫標題與描述。'
     return
   }
 
@@ -52,8 +63,7 @@ const submitTicket = async () => {
 
     await router.push(`/tickets/${updatedTicket.id || ticketId.value}`)
   } catch {
-    submitErrorMessage.value =
-      'Unable to update ticket. Please try again later.'
+    submitErrorMessage.value = '目前無法更新工單，請稍後再試。'
   } finally {
     isSubmitting.value = false
   }
@@ -84,7 +94,7 @@ onMounted(async () => {
       return
     }
 
-    errorMessage.value = 'Unable to load this ticket. Please try again later.'
+    errorMessage.value = '目前無法載入此工單，請稍後再試。'
   } finally {
     isLoading.value = false
   }
@@ -94,11 +104,11 @@ onMounted(async () => {
 <template>
   <section class="page">
     <RouterLink :to="ticketId ? `/tickets/${ticketId}` : '/tickets'">
-      Back to ticket
+      返回工單
     </RouterLink>
 
     <div v-if="isLoading" class="placeholder-panel" role="status">
-      Loading ticket...
+      正在載入工單...
     </div>
 
     <div v-else-if="errorMessage" class="placeholder-panel" role="alert">
@@ -106,52 +116,52 @@ onMounted(async () => {
     </div>
 
     <div v-else-if="isNotFound" class="placeholder-panel">
-      Ticket not found.
+      找不到此工單。
     </div>
 
     <template v-else>
-      <h1>Edit ticket</h1>
-      <p>Update the ticket details and return to the ticket page.</p>
+      <h1>編輯工單</h1>
+      <p>更新工單內容，儲存後回到工單詳細頁。</p>
 
       <form class="ticket-form" @submit.prevent="submitTicket">
         <label>
-          Title
+          標題
           <input v-model="form.title" required />
         </label>
 
         <label>
-          Description
+          描述
           <textarea v-model="form.description" required rows="5"></textarea>
         </label>
 
         <label>
-          Status
+          狀態
           <select v-model="form.status">
             <option
               v-for="status in statusOptions"
               :key="status"
               :value="status"
             >
-              {{ status }}
+              {{ statusLabels[status] }}
             </option>
           </select>
         </label>
 
         <label>
-          Priority
+          優先級
           <select v-model="form.priority">
             <option
               v-for="priority in priorityOptions"
               :key="priority"
               :value="priority"
             >
-              {{ priority }}
+              {{ priorityLabels[priority] }}
             </option>
           </select>
         </label>
 
         <label>
-          Assignee
+          負責人
           <input v-model="form.assignee" />
         </label>
 
@@ -160,7 +170,7 @@ onMounted(async () => {
         </div>
 
         <button type="submit" :disabled="isSubmitting">
-          {{ isSubmitting ? 'Saving...' : 'Save changes' }}
+          {{ isSubmitting ? '儲存中...' : '儲存變更' }}
         </button>
       </form>
     </template>
