@@ -1,5 +1,85 @@
 # TicketFlow
 
+## 面試展示版重點
+
+TicketFlow 是一個作品集導向的小型全端工單管理系統，重點不是做大而全的客服平台，而是展示如何把一個可理解的產品切片完整交付：前端可操作、後端有 API contract、資料庫可切換、Auth 有作品級基線、部署路徑能用免費方案說清楚。
+
+可以在面試中用這個專案說明：
+
+- 如何用 GitHub Issue 拆分 scope，維持一個 Issue、一個 branch、一個 PR。
+- 如何讓 Vue 前端從登入、Dashboard、列表、詳情、建立、編輯一路串到 ASP.NET Core API。
+- 如何用 ASP.NET Core minimal API、EF Core、SQLite / PostgreSQL provider 建立可測試的後端。
+- 如何自建 register / login / JWT，而不是把 Auth 交給 Supabase Auth。
+- 如何用 Netlify、Render、Supabase Free 組成可展示但不宣稱 production SLA 的部署方案。
+
+## 架構說明
+
+```text
+Browser
+  -> Netlify Vue SPA
+  -> Render ASP.NET Core Web API
+  -> Supabase managed PostgreSQL
+```
+
+本機開發時，前端 Vite dev server 透過 `/api` proxy 呼叫後端；後端預設使用 SQLite。Production 展示時，前端透過 `VITE_API_BASE_URL` 指向 Render API；後端透過環境變數切到 Supabase PostgreSQL，並用 `Cors__AllowedOrigins` 限制允許的 Netlify origin。
+
+## 資料流
+
+1. 使用者在前端註冊或登入。
+2. 後端驗證帳密，使用 password hash 儲存密碼，登入成功回傳 JWT 與目前使用者資料。
+3. 前端把 token 儲存在 session state/localStorage，呼叫 ticket API 時自動帶 `Authorization: Bearer <token>`。
+4. 後端保護 `/api/tickets`，未登入會回 401；`/health` 保持公開供 Render health check 使用。
+5. 工單 CRUD 透過 EF Core 寫入資料庫，本機是 SQLite，部署是 Supabase PostgreSQL。
+
+## 測試策略
+
+目前測試分三層：
+
+- 後端 integration tests：涵蓋 health、Auth register/login、重複 email、未登入 ticket API 401、登入後 CRUD、validation error。
+- 前端 unit tests：涵蓋 query string、API error message、Auth error message。
+- 手動 smoke test：部署後驗證 Render `/health`、Netlify route refresh、線上註冊、登入、登入後 CRUD。
+
+PR 前基線命令：
+
+```bash
+dotnet test
+cd frontend
+npm ci
+npm run lint
+npm run test
+npm run build
+```
+
+## Demo 與部署網址
+
+目前 README 不提交真實帳號、密碼、JWT secret、資料庫密碼或 connection string。部署完成後可在此段補上實際網址：
+
+```text
+Frontend demo URL: <Netlify URL>
+Backend health URL: <Render URL>/health
+Demo account: <部署後手動建立的 demo email>
+Demo password: <面試前私下準備，不提交到 repo>
+```
+
+建議 demo 帳號在正式展示前手動建立，並只放入非敏感示範資料。
+
+## 技術決策與取捨
+
+- 不使用 Supabase Auth：此作品要展示 ASP.NET Core Auth 基礎能力，因此後端自建 register / login / JWT。
+- 不做 refresh token：目前是面試作品級基線，access token 到期後重新登入即可，避免引入 token rotation 與撤銷狀態。
+- 不做 OAuth：OAuth 會增加第三方 provider 設定與 callback 維護成本，超出目前 CRUD + Auth 展示重點。
+- 不使用付費 DB：免費方案是硬限制，因此使用 Supabase Free PostgreSQL，並在 README 明確標示 quota、inactivity 與 SLA 限制。
+- 不保證 production SLA：Netlify / Render / Supabase Free 適合展示，不適合作為正式營運承諾。
+
+## 面試展示流程
+
+1. 先打開首頁 Dashboard，說明工單摘要與最近更新。
+2. 展示註冊、登入、登出與 route guard，未登入不能進入工單頁。
+3. 建立一筆高優先級工單，回到列表用 status / priority / keyword 篩選。
+4. 進入詳情頁，編輯狀態與指派人，再刪除工單。
+5. 說明後端 Auth、validation、integration tests，以及 deployment env vars 如何把本機 SQLite 切到 Supabase PostgreSQL。
+6. 最後主動說明未做 refresh token、OAuth、email verification 的原因，避免被誤認為遺漏。
+
 ## 免費部署設定
 
 TicketFlow 的展示部署以免費方案為硬限制：
@@ -95,6 +175,13 @@ backend/
 
 ## API Contract 摘要
 
+- `POST /api/auth/register`
+  - 註冊新使用者
+  - 欄位：`email`、`displayName`、`password`
+  - email 唯一，password 使用 hash 儲存
+- `POST /api/auth/login`
+  - 使用 email / password 登入
+  - 成功後回傳 JWT 與目前使用者資料
 - `GET /api/tickets`
   - 取得工單清單
   - 支援 `status`、`priority`、`keyword` query params
@@ -106,6 +193,8 @@ backend/
   - 更新工單
 - `DELETE /api/tickets/{id}`
   - 刪除工單
+
+除 `/health` 與 `/api/auth/*` 外，ticket API 需要 JWT。
 
 ## 本機開發
 
@@ -161,13 +250,14 @@ TicketFlow 展示如何把一個產品切片，從規劃推進到可操作的全
 
 目前 MVP 尚未實作以下能力：
 
-- 身分驗證或角色權限
 - Docker 設定
-- 部署設定
-- CI 設定
 - 通知功能
 - 檔案上傳
 - 報表或分析
 - 多租戶或計費流程
+- email verification
+- refresh token
+- OAuth
+- 多角色權限
 
 後續可以在核心工單流程穩定後，再逐步加入這些能力。
