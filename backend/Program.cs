@@ -11,10 +11,13 @@ using System.Text.Json.Serialization;
 using TicketFlow.Api.Data;
 using TicketFlow.Api.Models;
 
+const string CorsPolicyName = "ConfiguredFrontendOrigins";
+
 var builder = WebApplication.CreateBuilder(args);
 
 var databaseProvider = GetDatabaseProvider(builder.Configuration, builder.Environment);
 var jwtSettings = GetJwtSettings(builder.Configuration, builder.Environment);
+var corsAllowedOrigins = GetCorsAllowedOrigins(builder.Configuration);
 
 builder.Services.AddDbContext<TicketFlowDbContext>(options =>
 {
@@ -37,6 +40,16 @@ builder.Services.AddDbContext<TicketFlowDbContext>(options =>
 });
 builder.Services.AddSingleton(jwtSettings);
 builder.Services.AddScoped<IPasswordHasher<ApplicationUser>, PasswordHasher<ApplicationUser>>();
+if (corsAllowedOrigins.Length > 0)
+{
+    builder.Services.AddCors(options =>
+    {
+        options.AddPolicy(CorsPolicyName, policy =>
+            policy.WithOrigins(corsAllowedOrigins)
+                .AllowAnyHeader()
+                .AllowAnyMethod());
+    });
+}
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -96,6 +109,11 @@ if (app.Environment.IsDevelopment())
 
     app.UseSwagger();
     app.UseSwaggerUI();
+}
+
+if (corsAllowedOrigins.Length > 0)
+{
+    app.UseCors(CorsPolicyName);
 }
 
 app.UseAuthentication();
@@ -365,6 +383,24 @@ static string GetRequiredConnectionString(IConfiguration configuration, string n
 {
     return configuration.GetConnectionString(name)
         ?? throw new InvalidOperationException($"Connection string '{name}' is required.");
+}
+
+static string[] GetCorsAllowedOrigins(IConfiguration configuration)
+{
+    var configuredOrigins = configuration
+        .GetSection("Cors:AllowedOrigins")
+        .Get<string[]>() ?? [];
+
+    if (configuredOrigins.Length == 0)
+    {
+        configuredOrigins = (configuration["Cors:AllowedOrigins"] ?? string.Empty)
+            .Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    }
+
+    return configuredOrigins
+        .Where(origin => !string.IsNullOrWhiteSpace(origin))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
 }
 
 static JwtSettings GetJwtSettings(IConfiguration configuration, IHostEnvironment environment)
