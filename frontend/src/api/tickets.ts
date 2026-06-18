@@ -11,14 +11,21 @@ export type CreateTicketInput = Omit<Ticket, 'id' | 'createdAt' | 'updatedAt'>
 
 export type UpdateTicketInput = Partial<CreateTicketInput>
 
+export type TicketValidationError = {
+  message: string
+  errors: Record<string, string[]>
+}
+
 const ticketsUrl = (path = '') => `${API_BASE_URL}/tickets${path}`
 
 export class TicketApiError extends Error {
   readonly status: number
+  readonly validation?: TicketValidationError
 
-  constructor(status: number) {
-    super(`Ticket API request failed with status ${status}`)
+  constructor(status: number, validation?: TicketValidationError) {
+    super(validation?.message ?? `Ticket API request failed with status ${status}`)
     this.status = status
+    this.validation = validation
   }
 }
 
@@ -51,10 +58,39 @@ const requestJson = async <T>(url: string, init?: RequestInit): Promise<T> => {
   })
 
   if (!response.ok) {
-    throw new TicketApiError(response.status)
+    throw new TicketApiError(response.status, await readValidationError(response))
   }
 
   return response.json() as Promise<T>
+}
+
+const readValidationError = async (
+  response: Response,
+): Promise<TicketValidationError | undefined> => {
+  if (response.status !== 400) {
+    return undefined
+  }
+
+  try {
+    return (await response.json()) as TicketValidationError
+  } catch {
+    return undefined
+  }
+}
+
+export const getTicketApiErrorMessage = (
+  error: unknown,
+  fallback: string,
+) => {
+  if (!(error instanceof TicketApiError)) {
+    return fallback
+  }
+
+  const fieldMessage = Object.values(error.validation?.errors ?? {})
+    .flat()
+    .find(Boolean)
+
+  return fieldMessage ?? error.validation?.message ?? fallback
 }
 
 export const getTickets = (params?: TicketQueryParams) =>

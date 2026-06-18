@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { getTicketById, TicketApiError, updateTicket } from '../api/tickets'
+import {
+  getTicketApiErrorMessage,
+  getTicketById,
+  TicketApiError,
+  updateTicket,
+} from '../api/tickets'
 import type { UpdateTicketInput } from '../api/tickets'
 import type { TicketPriority, TicketStatus } from '../types/ticket'
 
@@ -62,8 +67,11 @@ const submitTicket = async () => {
     })
 
     await router.push(`/tickets/${updatedTicket.id || ticketId.value}`)
-  } catch {
-    submitErrorMessage.value = '目前無法更新工單，請稍後再試。'
+  } catch (error) {
+    submitErrorMessage.value = getTicketApiErrorMessage(
+      error,
+      '目前無法更新工單，請稍後再試。',
+    )
   } finally {
     isSubmitting.value = false
   }
