@@ -122,3 +122,7 @@ tickets.MapDelete("/{id:int}", async (int id, TicketFlowDbContext db) =>
     .WithName("DeleteTicket");
 
 app.Run();
+
+public partial class Program
+{
+}
