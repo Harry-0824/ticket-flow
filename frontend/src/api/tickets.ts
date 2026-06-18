@@ -1,4 +1,5 @@
 import { API_BASE_URL } from './config'
+import { emitUnauthorized, getStoredToken } from './session'
 import type { Ticket, TicketPriority, TicketStatus } from '../types/ticket'
 
 export type TicketQueryParams = {
@@ -50,18 +51,34 @@ export const buildTicketQueryString = (params: TicketQueryParams = {}) => {
 
 const requestJson = async <T>(url: string, init?: RequestInit): Promise<T> => {
   const response = await fetch(url, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...init?.headers,
-    },
+    headers: buildHeaders(init?.headers, true),
     ...init,
   })
 
   if (!response.ok) {
+    if (response.status === 401) {
+      emitUnauthorized()
+    }
+
     throw new TicketApiError(response.status, await readValidationError(response))
   }
 
   return response.json() as Promise<T>
+}
+
+const buildHeaders = (headers?: HeadersInit, includeJson = false) => {
+  const nextHeaders = new Headers(headers)
+
+  if (includeJson) {
+    nextHeaders.set('Content-Type', 'application/json')
+  }
+
+  const token = getStoredToken()
+  if (token) {
+    nextHeaders.set('Authorization', `Bearer ${token}`)
+  }
+
+  return nextHeaders
 }
 
 const readValidationError = async (
@@ -114,9 +131,14 @@ export const updateTicket = (id: Ticket['id'], ticket: UpdateTicketInput) =>
 export const deleteTicket = async (id: Ticket['id']) => {
   const response = await fetch(ticketsUrl(`/${id}`), {
     method: 'DELETE',
+    headers: buildHeaders(),
   })
 
   if (!response.ok) {
+    if (response.status === 401) {
+      emitUnauthorized()
+    }
+
     throw new Error(`Ticket API request failed with status ${response.status}`)
   }
 }

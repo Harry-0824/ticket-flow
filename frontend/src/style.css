@@ -88,6 +88,31 @@ nav a.router-link-active {
   color: #ffffff;
 }
 
+.session-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #374151;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.session-actions button {
+  min-height: 36px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #374151;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 6px 12px;
+}
+
+.session-actions button:hover {
+  border-color: #9ca3af;
+  background: #f8fafc;
+}
+
 main {
   width: min(1080px, calc(100% - 40px));
   margin: 0 auto;
@@ -454,6 +479,49 @@ button {
   padding: 10px 12px;
 }
 
+.form-notice {
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 700;
+  padding: 10px 12px;
+}
+
+.auth-page {
+  min-height: calc(100vh - 180px);
+  display: grid;
+  align-items: center;
+}
+
+.auth-panel {
+  width: min(480px, 100%);
+  display: grid;
+  gap: 16px;
+  margin: 0 auto;
+}
+
+.auth-heading {
+  display: grid;
+  gap: 10px;
+  text-align: center;
+}
+
+.auth-heading h1 {
+  color: #111827;
+  font-size: 36px;
+  line-height: 1.1;
+  margin: 0;
+}
+
+.auth-heading p {
+  max-width: none;
+}
+
+.auth-form {
+  margin-top: 0;
+}
+
 .ticket-actions,
 .delete-confirmation {
   display: flex;
@@ -676,6 +744,11 @@ dd {
     align-items: flex-start;
     flex-direction: column;
     gap: 12px;
+  }
+
+  .session-actions {
+    width: 100%;
+    justify-content: space-between;
   }
 
   main {
