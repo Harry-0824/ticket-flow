@@ -1,5 +1,58 @@
 # TicketFlow
 
+## 免費部署設定
+
+TicketFlow 的展示部署以免費方案為硬限制：
+
+- Frontend：Netlify Free，設定檔為 `netlify.toml`
+- Backend：Render Free Web Service，設定檔為 `render.yaml`
+- Database：Supabase Free managed PostgreSQL
+- Auth：ASP.NET Core 自建 register / login / JWT，不使用 Supabase Auth
+
+Netlify build 設定：
+
+```bash
+base = frontend
+build command = npm ci && npm run build
+publish directory = dist
+```
+
+`netlify.toml` 已設定 SPA redirect，重新整理 `/login`、`/register`、`/tickets/:id` 這類前端 route 不會回 404。Netlify 環境變數需要設定：
+
+```bash
+VITE_API_BASE_URL=https://<your-render-service>.onrender.com/api
+```
+
+Render backend 需要設定：
+
+```bash
+ASPNETCORE_ENVIRONMENT=Production
+Database__Provider=PostgreSQL
+ConnectionStrings__TicketFlowPostgres=<Supabase Session Pooler PostgreSQL connection string>
+Jwt__Issuer=TicketFlow
+Jwt__Audience=TicketFlowClient
+Jwt__Secret=<至少 32 bytes 的隨機字串>
+Jwt__ExpiresMinutes=60
+Cors__AllowedOrigins=https://<your-netlify-site>.netlify.app
+```
+
+Supabase 只作為 PostgreSQL database provider。PostgreSQL schema SQL 放在 `backend/Migrations/Postgres/`，不要把 SQLite migration 直接套到 Supabase。
+
+免費方案限制：
+
+- Render Free 可能 cold start，第一次開 API 會比較慢。
+- Supabase Free 有配額與 inactivity 限制，長時間未使用可能暫停。
+- Netlify / Render / Supabase Free 都不保證 production SLA。
+- 本專案部署目標是面試展示，不是正式商用 production hosting。
+
+部署後 smoke test：
+
+- Render `/health` 回 `Healthy`
+- Netlify route refresh 不會 404
+- 線上註冊成功
+- 線上登入成功
+- 登入後工單 CRUD 成功
+
 TicketFlow 是一個作品集導向的小型全端工單管理 MVP。它展示一個聚焦的 CRUD 流程：使用者可以透過 Vue 前端查看、篩選、建立、編輯與刪除客服工單，資料則由 ASP.NET Core Web API 提供。
 
 這個專案刻意維持 MVP 範圍，重點放在清楚的產品邊界、可讀性高的實作，以及前端、後端、資料庫之間的端到端資料流。
