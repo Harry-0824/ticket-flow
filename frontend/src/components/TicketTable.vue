@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { RouterLink } from 'vue-router'
 import type { Ticket } from '../types/ticket'
 import PriorityBadge from './PriorityBadge.vue'
 import StatusBadge from './StatusBadge.vue'
@@ -8,7 +9,7 @@ defineProps<{
 }>()
 
 const formatDate = (date: string) =>
-  new Intl.DateTimeFormat('en', {
+  new Intl.DateTimeFormat('zh-TW', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -20,22 +21,24 @@ const formatDate = (date: string) =>
     <table class="ticket-table">
       <thead>
         <tr>
-          <th scope="col">Ticket</th>
-          <th scope="col">Status</th>
-          <th scope="col">Priority</th>
-          <th scope="col">Assignee</th>
-          <th scope="col">Updated</th>
+          <th scope="col">工單</th>
+          <th scope="col">狀態</th>
+          <th scope="col">優先級</th>
+          <th scope="col">負責人</th>
+          <th scope="col">更新時間</th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="ticket in tickets" :key="ticket.id">
           <td>
-            <div class="ticket-title">{{ ticket.title }}</div>
+            <RouterLink class="ticket-title" :to="`/tickets/${ticket.id}`">
+              {{ ticket.title }}
+            </RouterLink>
             <div class="ticket-description">{{ ticket.description }}</div>
           </td>
           <td><StatusBadge :status="ticket.status" /></td>
           <td><PriorityBadge :priority="ticket.priority" /></td>
-          <td>{{ ticket.assignee || 'Unassigned' }}</td>
+          <td>{{ ticket.assignee || '未指派' }}</td>
           <td>{{ formatDate(ticket.updatedAt) }}</td>
         </tr>
       </tbody>

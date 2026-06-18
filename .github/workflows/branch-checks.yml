@@ -1,0 +1,319 @@
+name: Branch Checks (Canon v3.6+ Final)
+
+on:
+  pull_request:
+    branches:
+      - develop
+    types: [opened, synchronize, reopened]
+
+jobs:
+  # ─────────────────────────────────────────
+  # Job 1: Branch Freshness Check
+  # Canon v3.6 §7.2 / §9.6.1
+  # ─────────────────────────────────────────
+  branch-freshness-check:
+    name: branch-freshness-check
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      statuses: write
+    steps:
+      - name: Checkout PR HEAD
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch develop
+        run: git fetch origin develop
+
+      - name: Check branch freshness
+        id: freshness
+        run: |
+          if git merge-base --is-ancestor origin/develop HEAD; then
+            echo "result=pass" >> $GITHUB_OUTPUT
+            echo "PASS: PR HEAD includes latest origin/develop"
+          else
+            echo "result=fail" >> $GITHUB_OUTPUT
+            echo "FAIL: PR is behind origin/develop"
+            exit 1
+          fi
+
+      - name: Comment on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: [
+                '## ❌ Branch Freshness Check Failed',
+                '',
+                '`develop` has been updated since this branch was created.',
+                '',
+                '**[Canon v3.6 §7.2]** Please rebase or merge the latest `develop` into your branch, then rerun lint/test/build in a clean environment.',
+                '',
+                '```bash',
+                'git fetch origin develop',
+                'git rebase origin/develop',
+                '# or: git merge origin/develop',
+                'npm ci && npm run lint && npm run test && npm run build',
+                'git push --force-with-lease',
+                '```',
+                '',
+                '> ⚠️ Do not change Issue Scope while fixing freshness.'
+              ].join('\n')
+            })
+
+  # ─────────────────────────────────────────
+  # Job 2: Review Budget Guard
+  # Canon v3.6+ Final §4.6 / §9.6.1 / §18
+  # ─────────────────────────────────────────
+  review-budget-guard:
+    name: review-budget-guard
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout PR HEAD
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch develop
+        run: git fetch origin develop
+
+      - name: Check review budget
+        id: budget
+        run: |
+          BASE="origin/develop"
+          RANGE="$BASE...HEAD"
+
+          changed_files=$(git diff --name-only "$RANGE" | wc -l | tr -d ' ')
+          total_lines=$(git diff --numstat "$RANGE" | awk '{add+=$1; del+=$2} END {print add+del+0}')
+          max_file_lines=$(git diff --numstat "$RANGE" | awk '{sum=$1+$2; if(sum>max) max=sum} END {print max+0}')
+
+          echo "changed_files=$changed_files" >> $GITHUB_OUTPUT
+          echo "total_lines=$total_lines" >> $GITHUB_OUTPUT
+          echo "max_file_lines=$max_file_lines" >> $GITHUB_OUTPUT
+
+          echo "--- Review Budget Stats ---"
+          echo "Changed files:   $changed_files (limit: 10)"
+          echo "Total diff lines: $total_lines (limit: 800)"
+          echo "Max file lines:  $max_file_lines (limit: 300)"
+          PR_BODY=$(cat "$GITHUB_EVENT_PATH" | python3 -c "import sys,json; print(json.load(sys.stdin)['pull_request']['body'] or '')" 2>/dev/null || echo "")
+
+          FAIL=false
+          REASONS=""
+          if [ "$changed_files" -gt 10 ]; then
+            FAIL=true
+            REASONS="$REASONS\n- Changed files: $changed_files > 10"
+          fi
+          if [ "$total_lines" -gt 800 ]; then
+            FAIL=true
+            REASONS="$REASONS\n- Total diff lines: $total_lines > 800"
+          fi
+          if [ "$max_file_lines" -gt 300 ]; then
+            FAIL=true
+            REASONS="$REASONS\n- Largest file diff: $max_file_lines > 300 lines"
+          fi
+
+          if [ "$FAIL" = "true" ]; then
+            if echo "$PR_BODY" | grep -qi "review-budget/approved-exception"; then
+              echo "budget_fail=false" >> $GITHUB_OUTPUT
+              echo "budget_exception=true" >> $GITHUB_OUTPUT
+              echo "PASS: Review budget exception approved in PR body"
+              exit 0
+            fi
+            echo "budget_fail=true" >> $GITHUB_OUTPUT
+            echo "budget_reasons<<EOF" >> $GITHUB_OUTPUT
+            printf "$REASONS" >> $GITHUB_OUTPUT
+            echo "" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            exit 1
+          else
+            echo "budget_fail=false" >> $GITHUB_OUTPUT
+            echo "PASS: PR is within Review Budget"
+          fi
+
+      - name: Add label on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            try {
+              await github.rest.issues.addLabels({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                labels: ['status/needs-split-issue']
+              });
+            } catch(e) {
+              console.log('Label add failed (may not exist):', e.message);
+            }
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: [
+                '## ❌ Review Budget Guard Failed',
+                '',
+                'PR 體積超過 Review Budget，GPT Review 已跳過。',
+                '',
+                '| 指標 | 限制 |',
+                '|------|------|',
+                '| Changed files | ≤ 10 |',
+                '| Total diff lines | ≤ 800 |',
+                '| Single file diff | ≤ 300 |',
+                '',
+                '**[Canon v3.6+ Final §4.6]** 請 Hermes 拆小 Issue，或由 User 明確核准例外（在 PR body 加上 `review-budget/approved-exception` 說明）。',
+                '',
+                '> 即使例外核准，仍不得走 Low Risk Auto-Merge。'
+              ].join('\n')
+            })
+
+  # ─────────────────────────────────────────
+  # Job 3: Supply Chain Guard
+  # Canon v3.6+ §7.2 / §9.6.1 / §18
+  # ─────────────────────────────────────────
+  supply-chain-guard:
+    name: supply-chain-guard
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      statuses: write
+    steps:
+      - name: Checkout PR HEAD
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch develop
+        run: git fetch origin develop
+
+      - name: Check supply chain sensitive files
+        id: supply-chain
+        run: |
+          BASE="origin/develop"
+          RANGE="$BASE...HEAD"
+
+          SENSITIVE_FILES=$(git diff --name-only "$RANGE" | grep -E '(^|/)(package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|Dockerfile|docker-compose\.yml|\.github/workflows/)' || true)
+
+          if [ -z "$SENSITIVE_FILES" ]; then
+            echo "result=pass" >> $GITHUB_OUTPUT
+            echo "PASS: No supply-chain sensitive files changed"
+          else
+            echo "result=warn" >> $GITHUB_OUTPUT
+            echo "sensitive_files<<EOF" >> $GITHUB_OUTPUT
+            echo "$SENSITIVE_FILES" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "WARN: Supply chain sensitive files detected:"
+            echo "$SENSITIVE_FILES"
+
+            # Check if PR body explicitly approves dependency change
+            PR_BODY=$(cat "$GITHUB_EVENT_PATH" | python3 -c "import sys,json; print(json.load(sys.stdin)['pull_request']['body'] or '')" 2>/dev/null || echo "")
+            if echo "$PR_BODY" | grep -qi "dependency-approved"; then
+              echo "approved=true" >> $GITHUB_OUTPUT
+              echo "PASS: Dependency change explicitly approved in PR body"
+            else
+              echo "approved=false" >> $GITHUB_OUTPUT
+              exit 1
+            fi
+          fi
+
+      - name: Comment on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: [
+                '## ⚠️ Supply Chain Guard — Needs Review',
+                '',
+                'This PR modifies supply-chain sensitive files (package.json, lockfile, Dockerfile, or workflow files).',
+                '',
+                '**[Canon v3.6+ §7.2]** Dependency changes require explicit Issue approval.',
+                '',
+                'If this change is intentional and Issue-scoped, add the following line to the PR body:',
+                '```',
+                'dependency-approved: <reason>',
+                '```',
+                '',
+                'Otherwise, please remove unintended dependency changes.',
+                '',
+                '> Risk will be automatically escalated to Medium/High if approved.'
+              ].join('\n')
+            })
+
+  # ─────────────────────────────────────────
+  # Job 4: Hotfix Sync Lock
+  # Canon v3.6 §8.5 / §16 / §18
+  # ─────────────────────────────────────────
+  hotfix-sync-lock:
+    name: hotfix-sync-lock
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      statuses: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch main and develop
+        run: git fetch origin main develop
+
+      - name: Check hotfix sync lock
+        id: hotfix
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [ "$HEAD_REF" = "infrastructure/sync-main-to-develop" ]; then
+            echo "lock_active=false" >> $GITHUB_OUTPUT
+            echo "PASS: sync-main-to-develop PR is allowed to clear the hotfix sync lock."
+          elif git merge-base --is-ancestor origin/main origin/develop; then
+            echo "lock_active=false" >> $GITHUB_OUTPUT
+            echo "PASS: main is fully synced into develop. Low Risk Auto-Merge allowed."
+          else
+            echo "lock_active=true" >> $GITHUB_OUTPUT
+            echo "WARN: main has commits not yet in develop. Low Risk Auto-Merge is LOCKED."
+            exit 1
+          fi
+
+      - name: Comment on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: [
+                '## 🔒 Hotfix Sync Lock — Active',
+                '',
+                '`main` has commits that have not been synced back to `develop`.',
+                '',
+                '**[Canon v3.6 §8.5 / §16]** Low Risk Auto-Merge is **locked** until `main` is fully synced into `develop`.',
+                '',
+                '**GPT Review may still proceed**, but `Auto-Merge Approved` cannot be issued until the lock is cleared.',
+                '',
+                '**Resolution:**',
+                '1. Create or update the `infrastructure/sync-main-to-develop` PR',
+                '2. Get GPT Review Gate approval on the sync PR',
+                '3. Merge the sync PR — this clears the lock',
+                '',
+                '```bash',
+                'git checkout develop && git pull origin develop',
+                'git merge origin/main',
+                'npm ci && npm run lint && npm run test && npm run build',
+                'git push origin develop',
+                '```'
+              ].join('\n')
+            })

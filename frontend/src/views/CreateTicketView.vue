@@ -9,6 +9,17 @@ const router = useRouter()
 
 const statusOptions: TicketStatus[] = ['Open', 'InProgress', 'Done', 'Archived']
 const priorityOptions: TicketPriority[] = ['Low', 'Medium', 'High']
+const statusLabels: Record<TicketStatus, string> = {
+  Open: '待處理',
+  InProgress: '處理中',
+  Done: '已完成',
+  Archived: '已封存',
+}
+const priorityLabels: Record<TicketPriority, string> = {
+  Low: '低',
+  Medium: '中',
+  High: '高',
+}
 
 const form = reactive<CreateTicketInput>({
   title: '',
@@ -25,7 +36,7 @@ const submitTicket = async () => {
   errorMessage.value = ''
 
   if (!form.title.trim() || !form.description.trim()) {
-    errorMessage.value = 'Title and description are required.'
+    errorMessage.value = '請填寫標題與描述。'
     return
   }
 
@@ -44,7 +55,7 @@ const submitTicket = async () => {
       createdTicket.id ? `/tickets/${createdTicket.id}` : '/tickets',
     )
   } catch {
-    errorMessage.value = 'Unable to create ticket. Please try again later.'
+    errorMessage.value = '目前無法建立工單，請稍後再試。'
   } finally {
     isSubmitting.value = false
   }
@@ -53,56 +64,69 @@ const submitTicket = async () => {
 
 <template>
   <section class="page">
-    <RouterLink to="/tickets">Back to tickets</RouterLink>
+    <RouterLink to="/tickets">返回工單列表</RouterLink>
 
-    <h1>Create ticket</h1>
-    <p>Add a new support ticket to the current queue.</p>
+    <h1>建立工單</h1>
+    <p>新增一筆支援工單，讓目前佇列保持清楚可追蹤。</p>
 
     <form class="ticket-form" @submit.prevent="submitTicket">
+      <div class="form-intro">
+        <strong>工單內容</strong>
+        <span>標題與描述是必填欄位，其餘欄位可依目前狀態調整。</span>
+      </div>
+
       <label>
-        Title
-        <input v-model="form.title" required />
+        標題
+        <input v-model="form.title" required placeholder="例如：登入頁錯誤" />
       </label>
 
       <label>
-        Description
-        <textarea v-model="form.description" required rows="5"></textarea>
+        描述
+        <textarea
+          v-model="form.description"
+          required
+          rows="5"
+          placeholder="描述使用者遇到的問題、重現步驟或需要協助的內容"
+        ></textarea>
       </label>
 
       <label>
-        Status
+        狀態
         <select v-model="form.status">
           <option v-for="status in statusOptions" :key="status" :value="status">
-            {{ status }}
+            {{ statusLabels[status] }}
           </option>
         </select>
       </label>
 
       <label>
-        Priority
+        優先級
         <select v-model="form.priority">
           <option
             v-for="priority in priorityOptions"
             :key="priority"
             :value="priority"
           >
-            {{ priority }}
+            {{ priorityLabels[priority] }}
           </option>
         </select>
       </label>
 
       <label>
-        Assignee
-        <input v-model="form.assignee" />
+        負責人
+        <input v-model="form.assignee" placeholder="未指派可留空" />
       </label>
 
       <div v-if="errorMessage" class="form-error" role="alert">
         {{ errorMessage }}
       </div>
 
-      <button type="submit" :disabled="isSubmitting">
-        {{ isSubmitting ? 'Creating...' : 'Create ticket' }}
-      </button>
+      <div class="form-actions">
+        <button type="submit" :disabled="isSubmitting">
+          {{ isSubmitting ? '建立中...' : '建立工單' }}
+        </button>
+        <RouterLink class="secondary-link" to="/tickets">取消</RouterLink>
+      </div>
     </form>
   </section>
 </template>
