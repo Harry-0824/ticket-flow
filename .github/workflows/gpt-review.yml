@@ -73,17 +73,7 @@ jobs:
               body
             });
 
-            // set commit status to neutral so the required check passes but is visible
-            const sha = context.payload.pull_request.head.sha;
-            await github.rest.repos.createCommitStatus({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              sha,
-              state: 'neutral',
-              target_url: 'https://github.com/Harry-0824/ticket-flow/settings/secrets/actions',
-              description: 'GPT Review skipped: OPENROUTER_API_KEY not configured',
-              context: 'gpt-review-gate'
-            });
+            core.notice('GPT Review skipped because OPENROUTER_API_KEY is not configured.');
 
       # ------------------------------------------------------------------
       # Step: Collect Context Pack
@@ -303,7 +293,7 @@ jobs:
             const blocking = process.env.BLOCKING || '';
             const sha = context.payload.pull_request.head.sha;
 
-            let state = 'neutral';
+            let state = 'failure';
             let desc = '';
 
             if (verdict === 'approve') {
@@ -316,7 +306,7 @@ jobs:
               state = 'failure';
               desc = `Review infrastructure error: ${blocking || 'see status/infra-error label'}`;
             } else {
-              state = 'neutral';
+              state = 'failure';
               desc = `Phase 1 inconclusive (verdict=${verdict}).`;
             }
 
@@ -484,7 +474,7 @@ jobs:
             const risk   = process.env.RISK   || 'unknown';
             const sha = context.payload.pull_request.head.sha;
 
-            let state = 'neutral';
+            let state = 'failure';
             let desc = '';
 
             if (verdict === 'approve') {
