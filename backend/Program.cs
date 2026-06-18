@@ -5,8 +5,27 @@ using TicketFlow.Api.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var databaseProvider = GetDatabaseProvider(builder.Configuration, builder.Environment);
+
 builder.Services.AddDbContext<TicketFlowDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("TicketFlow")));
+{
+    if (databaseProvider.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase))
+    {
+        options.UseNpgsql(
+            GetRequiredConnectionString(builder.Configuration, "TicketFlowPostgres"),
+            npgsqlOptions => npgsqlOptions.EnableRetryOnFailure());
+        return;
+    }
+
+    if (databaseProvider.Equals("SQLite", StringComparison.OrdinalIgnoreCase))
+    {
+        options.UseSqlite(GetRequiredConnectionString(builder.Configuration, "TicketFlow"));
+        return;
+    }
+
+    throw new InvalidOperationException(
+        $"Unsupported database provider '{databaseProvider}'. Use 'SQLite' or 'PostgreSQL'.");
+});
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddEndpointsApiExplorer();
@@ -71,8 +90,17 @@ tickets.MapGet("/{id:int}", async (int id, TicketFlowDbContext db) =>
 
 tickets.MapPost("", async (Ticket ticket, TicketFlowDbContext db) =>
 {
+    var validationError = ValidateTicket(ticket);
+    if (validationError is not null)
+    {
+        return validationError;
+    }
+
     var now = DateTime.UtcNow;
     ticket.Id = 0;
+    ticket.Title = ticket.Title.Trim();
+    ticket.Description = ticket.Description.Trim();
+    ticket.Assignee = ticket.Assignee.Trim();
     ticket.CreatedAt = now;
     ticket.UpdatedAt = now;
 
@@ -85,6 +113,12 @@ tickets.MapPost("", async (Ticket ticket, TicketFlowDbContext db) =>
 
 tickets.MapPut("/{id:int}", async (int id, Ticket ticket, TicketFlowDbContext db) =>
 {
+    var validationError = ValidateTicket(ticket);
+    if (validationError is not null)
+    {
+        return validationError;
+    }
+
     var existingTicket = await db.Tickets.FindAsync(id);
 
     if (existingTicket is null)
@@ -92,11 +126,11 @@ tickets.MapPut("/{id:int}", async (int id, Ticket ticket, TicketFlowDbContext db
         return Results.NotFound();
     }
 
-    existingTicket.Title = ticket.Title;
-    existingTicket.Description = ticket.Description;
+    existingTicket.Title = ticket.Title.Trim();
+    existingTicket.Description = ticket.Description.Trim();
     existingTicket.Status = ticket.Status;
     existingTicket.Priority = ticket.Priority;
-    existingTicket.Assignee = ticket.Assignee;
+    existingTicket.Assignee = ticket.Assignee.Trim();
     existingTicket.UpdatedAt = DateTime.UtcNow;
 
     await db.SaveChangesAsync();
@@ -122,6 +156,58 @@ tickets.MapDelete("/{id:int}", async (int id, TicketFlowDbContext db) =>
     .WithName("DeleteTicket");
 
 app.Run();
+
+static IResult? ValidateTicket(Ticket ticket)
+{
+    var errors = new Dictionary<string, string[]>();
+
+    if (string.IsNullOrWhiteSpace(ticket.Title))
+    {
+        errors["title"] = ["標題為必填。"];
+    }
+    else if (ticket.Title.Trim().Length > 200)
+    {
+        errors["title"] = ["標題最多 200 個字元。"];
+    }
+
+    if (string.IsNullOrWhiteSpace(ticket.Description))
+    {
+        errors["description"] = ["描述為必填。"];
+    }
+    else if (ticket.Description.Trim().Length > 2000)
+    {
+        errors["description"] = ["描述最多 2000 個字元。"];
+    }
+
+    if (ticket.Assignee.Trim().Length > 120)
+    {
+        errors["assignee"] = ["指派對象最多 120 個字元。"];
+    }
+
+    return errors.Count == 0
+        ? null
+        : Results.BadRequest(new ValidationErrorResponse("請修正工單欄位後再送出。", errors));
+}
+
+static string GetDatabaseProvider(IConfiguration configuration, IHostEnvironment environment)
+{
+    var configuredProvider = configuration["Database:Provider"];
+
+    if (!string.IsNullOrWhiteSpace(configuredProvider))
+    {
+        return configuredProvider;
+    }
+
+    return environment.IsProduction() ? "PostgreSQL" : "SQLite";
+}
+
+static string GetRequiredConnectionString(IConfiguration configuration, string name)
+{
+    return configuration.GetConnectionString(name)
+        ?? throw new InvalidOperationException($"Connection string '{name}' is required.");
+}
+
+sealed record ValidationErrorResponse(string Message, Dictionary<string, string[]> Errors);
 
 public partial class Program
 {
