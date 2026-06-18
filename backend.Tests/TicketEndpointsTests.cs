@@ -1,7 +1,10 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.Extensions.DependencyInjection;
+using TicketFlow.Api.Data;
 using TicketFlow.Api.Models;
 
 namespace TicketFlow.Api.Tests;
@@ -24,8 +27,62 @@ public class TicketEndpointsTests(TicketFlowApiFactory factory)
     }
 
     [Fact]
+    public async Task RegisterLoginFlow_ReturnsJwtAndStoresPasswordHash()
+    {
+        var email = CreateUniqueEmail();
+        const string password = "Password123!";
+
+        var registerResponse = await client.PostAsJsonAsync("/api/auth/register", new
+        {
+            email,
+            displayName = "Alex Chen",
+            password
+        });
+
+        Assert.Equal(HttpStatusCode.Created, registerResponse.StatusCode);
+        var registered = await registerResponse.Content.ReadFromJsonAsync<AuthResponse>(JsonOptions);
+        Assert.NotNull(registered?.Token);
+        Assert.Equal(email, registered.User.Email);
+
+        var duplicateResponse = await client.PostAsJsonAsync("/api/auth/register", new
+        {
+            email = email.ToUpperInvariant(),
+            displayName = "Alex Chen",
+            password
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, duplicateResponse.StatusCode);
+
+        var loginResponse = await client.PostAsJsonAsync("/api/auth/login", new
+        {
+            email,
+            password
+        });
+
+        Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
+        var loggedIn = await loginResponse.Content.ReadFromJsonAsync<AuthResponse>(JsonOptions);
+        Assert.NotNull(loggedIn?.Token);
+        Assert.Equal(email, loggedIn.User.Email);
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<TicketFlowDbContext>();
+        var user = db.ApplicationUsers.Single(item => item.Email == email);
+        Assert.NotEqual(password, user.PasswordHash);
+        Assert.NotEmpty(user.PasswordHash);
+    }
+
+    [Fact]
+    public async Task TicketApi_RejectsAnonymousRequests()
+    {
+        var response = await client.GetAsync("/api/tickets");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
     public async Task TicketCrudFlow_PersistsAndRemovesTicket()
     {
+        await RegisterAndAuthorizeAsync();
+
         var createResponse = await client.PostAsJsonAsync("/api/tickets", new
         {
             title = "Login issue",
@@ -76,6 +133,8 @@ public class TicketEndpointsTests(TicketFlowApiFactory factory)
     [Fact]
     public async Task CreateTicket_RejectsInvalidInput()
     {
+        await RegisterAndAuthorizeAsync();
+
         var response = await client.PostAsJsonAsync("/api/tickets", new
         {
             title = " ",
@@ -96,6 +155,8 @@ public class TicketEndpointsTests(TicketFlowApiFactory factory)
     [Fact]
     public async Task UpdateTicket_RejectsInvalidInput()
     {
+        await RegisterAndAuthorizeAsync();
+
         var createResponse = await client.PostAsJsonAsync("/api/tickets", new
         {
             title = "Billing issue",
@@ -121,9 +182,32 @@ public class TicketEndpointsTests(TicketFlowApiFactory factory)
         Assert.Contains("description", validation.Errors.Keys);
     }
 
+    private async Task<AuthResponse> RegisterAndAuthorizeAsync()
+    {
+        var response = await client.PostAsJsonAsync("/api/auth/register", new
+        {
+            email = CreateUniqueEmail(),
+            displayName = "Test User",
+            password = "Password123!"
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var auth = await response.Content.ReadFromJsonAsync<AuthResponse>(JsonOptions);
+        Assert.NotNull(auth?.Token);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.Token);
+
+        return auth;
+    }
+
+    private static string CreateUniqueEmail() => $"user-{Guid.NewGuid():N}@example.com";
+
     private sealed record HealthResponse(string Status);
 
     private sealed record ValidationErrorResponse(
         string Message,
         Dictionary<string, string[]> Errors);
+
+    private sealed record AuthUserResponse(int Id, string Email, string DisplayName);
+
+    private sealed record AuthResponse(string Token, DateTime ExpiresAt, AuthUserResponse User);
 }
