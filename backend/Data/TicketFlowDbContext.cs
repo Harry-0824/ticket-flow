@@ -5,10 +5,25 @@ namespace TicketFlow.Api.Data;
 
 public class TicketFlowDbContext(DbContextOptions<TicketFlowDbContext> options) : DbContext(options)
 {
+    public DbSet<ApplicationUser> ApplicationUsers => Set<ApplicationUser>();
+
     public DbSet<Ticket> Tickets => Set<Ticket>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<ApplicationUser>(user =>
+        {
+            user.ToTable("ApplicationUsers");
+            user.HasKey(item => item.Id);
+            user.HasIndex(item => item.NormalizedEmail).IsUnique();
+            user.Property(item => item.Email).HasMaxLength(320).IsRequired();
+            user.Property(item => item.NormalizedEmail).HasMaxLength(320).IsRequired();
+            user.Property(item => item.DisplayName).HasMaxLength(120).IsRequired();
+            user.Property(item => item.PasswordHash).HasMaxLength(500).IsRequired();
+            user.Property(item => item.CreatedAt).IsRequired();
+            user.Property(item => item.UpdatedAt).IsRequired();
+        });
+
         modelBuilder.Entity<Ticket>(ticket =>
         {
             ticket.ToTable("Tickets");

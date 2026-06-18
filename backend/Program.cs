@@ -1,4 +1,12 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
+using System.IdentityModel.Tokens.Jwt;
+using System.Net.Mail;
+using System.Security.Claims;
+using System.Text;
 using System.Text.Json.Serialization;
 using TicketFlow.Api.Data;
 using TicketFlow.Api.Models;
@@ -6,6 +14,7 @@ using TicketFlow.Api.Models;
 var builder = WebApplication.CreateBuilder(args);
 
 var databaseProvider = GetDatabaseProvider(builder.Configuration, builder.Environment);
+var jwtSettings = GetJwtSettings(builder.Configuration, builder.Environment);
 
 builder.Services.AddDbContext<TicketFlowDbContext>(options =>
 {
@@ -26,10 +35,54 @@ builder.Services.AddDbContext<TicketFlowDbContext>(options =>
     throw new InvalidOperationException(
         $"Unsupported database provider '{databaseProvider}'. Use 'SQLite' or 'PostgreSQL'.");
 });
+builder.Services.AddSingleton(jwtSettings);
+builder.Services.AddScoped<IPasswordHasher<ApplicationUser>, PasswordHasher<ApplicationUser>>();
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateIssuerSigningKey = true,
+            ValidateLifetime = true,
+            ValidIssuer = jwtSettings.Issuer,
+            ValidAudience = jwtSettings.Audience,
+            IssuerSigningKey = CreateSigningKey(jwtSettings.Secret),
+            ClockSkew = TimeSpan.FromMinutes(1)
+        };
+    });
+builder.Services.AddAuthorization();
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "JWT Authorization header using the Bearer scheme.",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT"
+    });
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            []
+        }
+    });
+});
 
 var app = builder.Build();
 
@@ -45,10 +98,85 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy" }))
     .WithName("GetHealth");
 
+var auth = app.MapGroup("/api/auth").WithTags("Auth");
+
+auth.MapPost("/register", async (
+    RegisterRequest request,
+    TicketFlowDbContext db,
+    IPasswordHasher<ApplicationUser> passwordHasher,
+    JwtSettings settings) =>
+{
+    var validationError = ValidateRegister(request);
+    if (validationError is not null)
+    {
+        return validationError;
+    }
+
+    var email = request.Email.Trim();
+    var normalizedEmail = NormalizeEmail(email);
+    var emailExists = await db.ApplicationUsers.AnyAsync(user => user.NormalizedEmail == normalizedEmail);
+
+    if (emailExists)
+    {
+        return Results.BadRequest(new ValidationErrorResponse(
+            "請修正註冊欄位後再送出。",
+            new Dictionary<string, string[]>
+            {
+                ["email"] = ["Email 已被註冊。"]
+            }));
+    }
+
+    var now = DateTime.UtcNow;
+    var user = new ApplicationUser
+    {
+        Email = email,
+        NormalizedEmail = normalizedEmail,
+        DisplayName = request.DisplayName.Trim(),
+        CreatedAt = now,
+        UpdatedAt = now
+    };
+    user.PasswordHash = passwordHasher.HashPassword(user, request.Password);
+
+    db.ApplicationUsers.Add(user);
+    await db.SaveChangesAsync();
+
+    return Results.Created("/api/auth/login", CreateAuthResponse(user, settings));
+})
+    .WithName("Register");
+
+auth.MapPost("/login", async (
+    LoginRequest request,
+    TicketFlowDbContext db,
+    IPasswordHasher<ApplicationUser> passwordHasher,
+    JwtSettings settings) =>
+{
+    var email = request.Email.Trim();
+    var normalizedEmail = NormalizeEmail(email);
+    var user = await db.ApplicationUsers.FirstOrDefaultAsync(item => item.NormalizedEmail == normalizedEmail);
+
+    if (user is null)
+    {
+        return InvalidLogin();
+    }
+
+    var result = passwordHasher.VerifyHashedPassword(user, user.PasswordHash, request.Password);
+    if (result == PasswordVerificationResult.Failed)
+    {
+        return InvalidLogin();
+    }
+
+    return Results.Ok(CreateAuthResponse(user, settings));
+})
+    .WithName("Login");
+
 var tickets = app.MapGroup("/api/tickets").WithTags("Tickets");
+tickets.RequireAuthorization();
 
 tickets.MapGet("", async (
     TicketStatus? status,
@@ -157,6 +285,38 @@ tickets.MapDelete("/{id:int}", async (int id, TicketFlowDbContext db) =>
 
 app.Run();
 
+static IResult? ValidateRegister(RegisterRequest request)
+{
+    var errors = new Dictionary<string, string[]>();
+
+    if (string.IsNullOrWhiteSpace(request.Email) || !IsValidEmail(request.Email.Trim()))
+    {
+        errors["email"] = ["請輸入有效的 Email。"];
+    }
+    else if (request.Email.Trim().Length > 320)
+    {
+        errors["email"] = ["Email 最多 320 個字元。"];
+    }
+
+    if (string.IsNullOrWhiteSpace(request.DisplayName))
+    {
+        errors["displayName"] = ["顯示名稱為必填。"];
+    }
+    else if (request.DisplayName.Trim().Length > 120)
+    {
+        errors["displayName"] = ["顯示名稱最多 120 個字元。"];
+    }
+
+    if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < 8)
+    {
+        errors["password"] = ["密碼至少需要 8 個字元。"];
+    }
+
+    return errors.Count == 0
+        ? null
+        : Results.BadRequest(new ValidationErrorResponse("請修正註冊欄位後再送出。", errors));
+}
+
 static IResult? ValidateTicket(Ticket ticket)
 {
     var errors = new Dictionary<string, string[]>();
@@ -207,7 +367,96 @@ static string GetRequiredConnectionString(IConfiguration configuration, string n
         ?? throw new InvalidOperationException($"Connection string '{name}' is required.");
 }
 
+static JwtSettings GetJwtSettings(IConfiguration configuration, IHostEnvironment environment)
+{
+    var issuer = configuration["Jwt:Issuer"] ?? "TicketFlow";
+    var audience = configuration["Jwt:Audience"] ?? "TicketFlowClient";
+    var secret = configuration["Jwt:Secret"];
+    var expiresMinutes = configuration.GetValue("Jwt:ExpiresMinutes", 60);
+
+    if (string.IsNullOrWhiteSpace(secret))
+    {
+        if (environment.IsProduction())
+        {
+            throw new InvalidOperationException("JWT secret is required in production.");
+        }
+
+        secret = "ticket-flow-local-development-signing-key";
+    }
+
+    if (Encoding.UTF8.GetByteCount(secret) < 32)
+    {
+        throw new InvalidOperationException("JWT secret must be at least 32 bytes.");
+    }
+
+    if (expiresMinutes <= 0)
+    {
+        throw new InvalidOperationException("JWT expiration minutes must be greater than 0.");
+    }
+
+    return new JwtSettings(issuer, audience, secret, expiresMinutes);
+}
+
+static AuthResponse CreateAuthResponse(ApplicationUser user, JwtSettings settings)
+{
+    var expiresAt = DateTime.UtcNow.AddMinutes(settings.ExpiresMinutes);
+    var claims = new[]
+    {
+        new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+        new Claim(JwtRegisteredClaimNames.Email, user.Email),
+        new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+        new Claim(ClaimTypes.Name, user.DisplayName)
+    };
+    var token = new JwtSecurityToken(
+        issuer: settings.Issuer,
+        audience: settings.Audience,
+        claims: claims,
+        expires: expiresAt,
+        signingCredentials: new SigningCredentials(
+            CreateSigningKey(settings.Secret),
+            SecurityAlgorithms.HmacSha256));
+
+    return new AuthResponse(
+        new JwtSecurityTokenHandler().WriteToken(token),
+        expiresAt,
+        new AuthUserResponse(user.Id, user.Email, user.DisplayName));
+}
+
+static SymmetricSecurityKey CreateSigningKey(string secret) =>
+    new(Encoding.UTF8.GetBytes(secret));
+
+static string NormalizeEmail(string email) => email.Trim().ToUpperInvariant();
+
+static bool IsValidEmail(string email)
+{
+    try
+    {
+        return string.Equals(new MailAddress(email).Address, email, StringComparison.OrdinalIgnoreCase);
+    }
+    catch (FormatException)
+    {
+        return false;
+    }
+}
+
+static IResult InvalidLogin() =>
+    Results.Json(
+        new ErrorResponse("Email 或密碼不正確。"),
+        statusCode: StatusCodes.Status401Unauthorized);
+
 sealed record ValidationErrorResponse(string Message, Dictionary<string, string[]> Errors);
+
+sealed record RegisterRequest(string Email, string DisplayName, string Password);
+
+sealed record LoginRequest(string Email, string Password);
+
+sealed record AuthUserResponse(int Id, string Email, string DisplayName);
+
+sealed record AuthResponse(string Token, DateTime ExpiresAt, AuthUserResponse User);
+
+sealed record ErrorResponse(string Message);
+
+sealed record JwtSettings(string Issuer, string Audience, string Secret, int ExpiresMinutes);
 
 public partial class Program
 {
