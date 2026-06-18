@@ -5,8 +5,27 @@ using TicketFlow.Api.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var databaseProvider = GetDatabaseProvider(builder.Configuration, builder.Environment);
+
 builder.Services.AddDbContext<TicketFlowDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("TicketFlow")));
+{
+    if (databaseProvider.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase))
+    {
+        options.UseNpgsql(
+            GetRequiredConnectionString(builder.Configuration, "TicketFlowPostgres"),
+            npgsqlOptions => npgsqlOptions.EnableRetryOnFailure());
+        return;
+    }
+
+    if (databaseProvider.Equals("SQLite", StringComparison.OrdinalIgnoreCase))
+    {
+        options.UseSqlite(GetRequiredConnectionString(builder.Configuration, "TicketFlow"));
+        return;
+    }
+
+    throw new InvalidOperationException(
+        $"Unsupported database provider '{databaseProvider}'. Use 'SQLite' or 'PostgreSQL'.");
+});
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddEndpointsApiExplorer();
@@ -122,6 +141,24 @@ tickets.MapDelete("/{id:int}", async (int id, TicketFlowDbContext db) =>
     .WithName("DeleteTicket");
 
 app.Run();
+
+static string GetDatabaseProvider(IConfiguration configuration, IHostEnvironment environment)
+{
+    var configuredProvider = configuration["Database:Provider"];
+
+    if (!string.IsNullOrWhiteSpace(configuredProvider))
+    {
+        return configuredProvider;
+    }
+
+    return environment.IsProduction() ? "PostgreSQL" : "SQLite";
+}
+
+static string GetRequiredConnectionString(IConfiguration configuration, string name)
+{
+    return configuration.GetConnectionString(name)
+        ?? throw new InvalidOperationException($"Connection string '{name}' is required.");
+}
 
 public partial class Program
 {
