@@ -5,8 +5,27 @@ using TicketFlow.Api.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var databaseProvider = GetDatabaseProvider(builder.Configuration, builder.Environment);
+
 builder.Services.AddDbContext<TicketFlowDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("TicketFlow")));
+{
+    if (databaseProvider.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase))
+    {
+        options.UseNpgsql(
+            GetRequiredConnectionString(builder.Configuration, "TicketFlowPostgres"),
+            npgsqlOptions => npgsqlOptions.EnableRetryOnFailure());
+        return;
+    }
+
+    if (databaseProvider.Equals("SQLite", StringComparison.OrdinalIgnoreCase))
+    {
+        options.UseSqlite(GetRequiredConnectionString(builder.Configuration, "TicketFlow"));
+        return;
+    }
+
+    throw new InvalidOperationException(
+        $"Unsupported database provider '{databaseProvider}'. Use 'SQLite' or 'PostgreSQL'.");
+});
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddEndpointsApiExplorer();
@@ -168,6 +187,24 @@ static IResult? ValidateTicket(Ticket ticket)
     return errors.Count == 0
         ? null
         : Results.BadRequest(new ValidationErrorResponse("請修正工單欄位後再送出。", errors));
+}
+
+static string GetDatabaseProvider(IConfiguration configuration, IHostEnvironment environment)
+{
+    var configuredProvider = configuration["Database:Provider"];
+
+    if (!string.IsNullOrWhiteSpace(configuredProvider))
+    {
+        return configuredProvider;
+    }
+
+    return environment.IsProduction() ? "PostgreSQL" : "SQLite";
+}
+
+static string GetRequiredConnectionString(IConfiguration configuration, string name)
+{
+    return configuration.GetConnectionString(name)
+        ?? throw new InvalidOperationException($"Connection string '{name}' is required.");
 }
 
 sealed record ValidationErrorResponse(string Message, Dictionary<string, string[]> Errors);
