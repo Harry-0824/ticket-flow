@@ -73,5 +73,57 @@ public class TicketEndpointsTests(TicketFlowApiFactory factory)
         Assert.Equal(HttpStatusCode.NotFound, missingResponse.StatusCode);
     }
 
+    [Fact]
+    public async Task CreateTicket_RejectsInvalidInput()
+    {
+        var response = await client.PostAsJsonAsync("/api/tickets", new
+        {
+            title = " ",
+            description = "",
+            status = "Open",
+            priority = "Medium",
+            assignee = new string('a', 121)
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var validation = await response.Content.ReadFromJsonAsync<ValidationErrorResponse>(JsonOptions);
+        Assert.Equal("請修正工單欄位後再送出。", validation?.Message);
+        Assert.Contains("title", validation!.Errors.Keys);
+        Assert.Contains("description", validation.Errors.Keys);
+        Assert.Contains("assignee", validation.Errors.Keys);
+    }
+
+    [Fact]
+    public async Task UpdateTicket_RejectsInvalidInput()
+    {
+        var createResponse = await client.PostAsJsonAsync("/api/tickets", new
+        {
+            title = "Billing issue",
+            description = "Invoice total does not match the contract.",
+            status = "Open",
+            priority = "Medium",
+            assignee = ""
+        });
+        var createdTicket = await createResponse.Content.ReadFromJsonAsync<Ticket>(JsonOptions);
+
+        var response = await client.PutAsJsonAsync($"/api/tickets/{createdTicket!.Id}", new
+        {
+            title = new string('x', 201),
+            description = " ",
+            status = "Open",
+            priority = "Medium",
+            assignee = ""
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var validation = await response.Content.ReadFromJsonAsync<ValidationErrorResponse>(JsonOptions);
+        Assert.Contains("title", validation!.Errors.Keys);
+        Assert.Contains("description", validation.Errors.Keys);
+    }
+
     private sealed record HealthResponse(string Status);
+
+    private sealed record ValidationErrorResponse(
+        string Message,
+        Dictionary<string, string[]> Errors);
 }

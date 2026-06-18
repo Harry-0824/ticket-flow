@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { createTicket } from '../api/tickets'
+import { createTicket, getTicketApiErrorMessage } from '../api/tickets'
 import type { CreateTicketInput } from '../api/tickets'
 import type { TicketPriority, TicketStatus } from '../types/ticket'
 
@@ -54,8 +54,11 @@ const submitTicket = async () => {
     await router.push(
       createdTicket.id ? `/tickets/${createdTicket.id}` : '/tickets',
     )
-  } catch {
-    errorMessage.value = '目前無法建立工單，請稍後再試。'
+  } catch (error) {
+    errorMessage.value = getTicketApiErrorMessage(
+      error,
+      '目前無法建立工單，請稍後再試。',
+    )
   } finally {
     isSubmitting.value = false
   }
