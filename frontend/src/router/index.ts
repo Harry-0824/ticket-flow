@@ -59,6 +59,7 @@ export const router = createRouter({
 router.beforeEach((to) => {
   const appStore = useAppStore()
 
+  // route meta 是前端第一層保護；真正的權限仍由後端 JWT 驗證，兩邊一起避免未登入操作工單。
   if (to.meta.requiresAuth && !appStore.isAuthenticated) {
     return {
       name: 'login',
@@ -66,6 +67,7 @@ router.beforeEach((to) => {
     }
   }
 
+  // 已登入使用者不需要再進登入/註冊頁，避免覆蓋目前有效 session。
   if (to.meta.guestOnly && appStore.isAuthenticated) {
     return { name: 'home' }
   }

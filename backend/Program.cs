@@ -15,6 +15,7 @@ const string CorsPolicyName = "ConfiguredFrontendOrigins";
 
 var builder = WebApplication.CreateBuilder(args);
 
+// 啟動時先集中讀取環境差異，讓本機 SQLite、正式環境 PostgreSQL 與 JWT 設定保持同一套入口。
 var databaseProvider = GetDatabaseProvider(builder.Configuration, builder.Environment);
 var jwtSettings = GetJwtSettings(builder.Configuration, builder.Environment);
 var corsAllowedOrigins = GetCorsAllowedOrigins(builder.Configuration);
@@ -23,6 +24,7 @@ builder.Services.AddDbContext<TicketFlowDbContext>(options =>
 {
     if (databaseProvider.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase))
     {
+        // Render 正式環境連 Supabase PostgreSQL；EnableRetryOnFailure 可降低短暫網路抖動造成的部署啟動失敗。
         options.UseNpgsql(
             GetRequiredConnectionString(builder.Configuration, "TicketFlowPostgres"),
             npgsqlOptions => npgsqlOptions.EnableRetryOnFailure());
@@ -31,6 +33,7 @@ builder.Services.AddDbContext<TicketFlowDbContext>(options =>
 
     if (databaseProvider.Equals("SQLite", StringComparison.OrdinalIgnoreCase))
     {
+        // 本機預設保留 SQLite，讓面試 demo 開發不需要先安裝 PostgreSQL。
         options.UseSqlite(GetRequiredConnectionString(builder.Configuration, "TicketFlow"));
         return;
     }
@@ -39,6 +42,7 @@ builder.Services.AddDbContext<TicketFlowDbContext>(options =>
         $"Unsupported database provider '{databaseProvider}'. Use 'SQLite' or 'PostgreSQL'.");
 });
 builder.Services.AddSingleton(jwtSettings);
+// 使用 ASP.NET Core Identity 內建 hasher，只採用密碼雜湊能力，不引入完整 Identity 使用者系統。
 builder.Services.AddScoped<IPasswordHasher<ApplicationUser>, PasswordHasher<ApplicationUser>>();
 if (corsAllowedOrigins.Length > 0)
 {
@@ -54,6 +58,7 @@ builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        // API 只接受後端簽出的 JWT；issuer/audience/secret 必須與登入回傳 token 的設定一致。
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -104,6 +109,7 @@ if (app.Environment.IsDevelopment())
     using (var scope = app.Services.CreateScope())
     {
         var db = scope.ServiceProvider.GetRequiredService<TicketFlowDbContext>();
+        // 開發環境自動套 migration，方便用全新 SQLite 檔快速啟動；正式環境交由部署流程控管。
         db.Database.Migrate();
     }
 
@@ -122,6 +128,7 @@ app.UseAuthorization();
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy" }))
     .WithName("GetHealth");
 
+// Auth API 由後端自建；Supabase 在本專案只作 PostgreSQL，不使用 Supabase Auth。
 var auth = app.MapGroup("/api/auth").WithTags("Auth");
 
 auth.MapPost("/register", async (
@@ -138,6 +145,7 @@ auth.MapPost("/register", async (
 
     var email = request.Email.Trim();
     var normalizedEmail = NormalizeEmail(email);
+    // 以 NormalizedEmail 做唯一檢查，避免大小寫不同造成重複帳號。
     var emailExists = await db.ApplicationUsers.AnyAsync(user => user.NormalizedEmail == normalizedEmail);
 
     if (emailExists)
@@ -159,6 +167,7 @@ auth.MapPost("/register", async (
         CreatedAt = now,
         UpdatedAt = now
     };
+    // PasswordHash 是唯一會被保存的密碼資料，後端不儲存明文 password。
     user.PasswordHash = passwordHasher.HashPassword(user, request.Password);
 
     db.ApplicationUsers.Add(user);
@@ -194,6 +203,7 @@ auth.MapPost("/login", async (
     .WithName("Login");
 
 var tickets = app.MapGroup("/api/tickets").WithTags("Tickets");
+// 工單 CRUD 是作品的核心資料，必須登入後才能存取，避免未授權使用者直接操作 API。
 tickets.RequireAuthorization();
 
 tickets.MapGet("", async (
@@ -376,6 +386,7 @@ static string GetDatabaseProvider(IConfiguration configuration, IHostEnvironment
         return configuredProvider;
     }
 
+    // 沒有明確設定時，本機走 SQLite、正式環境走 PostgreSQL，降低部署時接錯資料庫的風險。
     return environment.IsProduction() ? "PostgreSQL" : "SQLite";
 }
 
@@ -417,6 +428,7 @@ static JwtSettings GetJwtSettings(IConfiguration configuration, IHostEnvironment
             throw new InvalidOperationException("JWT secret is required in production.");
         }
 
+        // 只有非正式環境允許 fallback secret；正式部署一定要由 Render env var 提供。
         secret = "ticket-flow-local-development-signing-key";
     }
 
@@ -436,6 +448,7 @@ static JwtSettings GetJwtSettings(IConfiguration configuration, IHostEnvironment
 static AuthResponse CreateAuthResponse(ApplicationUser user, JwtSettings settings)
 {
     var expiresAt = DateTime.UtcNow.AddMinutes(settings.ExpiresMinutes);
+    // token claims 只放前端需要辨識登入者的最小資料，權限模型之後可再擴充。
     var claims = new[]
     {
         new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),

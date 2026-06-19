@@ -19,6 +19,7 @@ export type TicketValidationError = {
 
 const ticketsUrl = (path = '') => `${API_BASE_URL}/tickets${path}`
 
+// TicketApiError 包含後端 validation 結構，表單頁可以優先顯示欄位錯誤。
 export class TicketApiError extends Error {
   readonly status: number
   readonly validation?: TicketValidationError
@@ -31,6 +32,7 @@ export class TicketApiError extends Error {
 }
 
 export const buildTicketQueryString = (params: TicketQueryParams = {}) => {
+  // 只把有值的篩選條件放進 query string，避免後端收到空字串後需要額外判斷。
   const searchParams = new URLSearchParams()
 
   if (params.status) {
@@ -57,6 +59,7 @@ const requestJson = async <T>(url: string, init?: RequestInit): Promise<T> => {
 
   if (!response.ok) {
     if (response.status === 401) {
+      // token 過期或失效時通知全站清 session，避免每個 view 都各自處理 401。
       emitUnauthorized()
     }
 
@@ -75,6 +78,7 @@ const buildHeaders = (headers?: HeadersInit, includeJson = false) => {
 
   const token = getStoredToken()
   if (token) {
+    // ticket endpoints 在後端有 RequireAuthorization，因此每個 CRUD request 都要帶 Bearer token。
     nextHeaders.set('Authorization', `Bearer ${token}`)
   }
 

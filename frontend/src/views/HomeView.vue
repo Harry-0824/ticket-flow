@@ -15,6 +15,7 @@ const loadDashboard = async () => {
   errorMessage.value = ''
 
   try {
+    // Dashboard 直接重用 ticket list API，避免為作品級首頁額外增加一組後端統計 endpoint。
     tickets.value = await getTickets()
   } catch {
     errorMessage.value = '目前無法載入工單摘要，請稍後再試。'
@@ -24,6 +25,7 @@ const loadDashboard = async () => {
 }
 
 const dashboardStats = computed(() => {
+  // 目前資料量小，前端即時計算摘要即可；若未來資料變大，再改由後端聚合會更適合。
   const openTickets = tickets.value.filter((ticket) => ticket.status === 'Open')
   const inProgressTickets = tickets.value.filter(
     (ticket) => ticket.status === 'InProgress',
