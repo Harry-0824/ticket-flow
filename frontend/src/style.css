@@ -88,6 +88,31 @@ nav a.router-link-active {
   color: #ffffff;
 }
 
+.session-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #374151;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.session-actions button {
+  min-height: 36px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #374151;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 6px 12px;
+}
+
+.session-actions button:hover {
+  border-color: #9ca3af;
+  background: #f8fafc;
+}
+
 main {
   width: min(1080px, calc(100% - 40px));
   margin: 0 auto;
@@ -182,6 +207,117 @@ main {
   font-weight: 700;
   margin-top: 16px;
   padding: 24px;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.metric-card {
+  display: grid;
+  min-height: 112px;
+  align-content: space-between;
+  gap: 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  padding: 18px;
+}
+
+.metric-card span {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.metric-card strong {
+  color: #111827;
+  font-size: 34px;
+  line-height: 1;
+}
+
+.metric-card[data-tone="open"] {
+  border-top: 4px solid #2563eb;
+}
+
+.metric-card[data-tone="progress"] {
+  border-top: 4px solid #d97706;
+}
+
+.metric-card[data-tone="high"] {
+  border-top: 4px solid #dc2626;
+}
+
+.metric-card[data-tone="unassigned"] {
+  border-top: 4px solid #7c3aed;
+}
+
+.dashboard-section {
+  display: grid;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.section-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.section-heading h2 {
+  color: #111827;
+  font-size: 22px;
+  margin: 0 0 6px;
+}
+
+.section-heading p {
+  font-size: 15px;
+}
+
+.recent-ticket-list {
+  display: grid;
+  gap: 10px;
+}
+
+.recent-ticket-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  padding: 16px;
+  text-decoration: none;
+}
+
+.recent-ticket-row:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.recent-ticket-row strong {
+  display: block;
+  color: #111827;
+  overflow-wrap: anywhere;
+}
+
+.recent-ticket-row span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.recent-ticket-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .ticket-filters {
@@ -341,6 +477,49 @@ button {
   color: #b91c1c;
   font-weight: 700;
   padding: 10px 12px;
+}
+
+.form-notice {
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 700;
+  padding: 10px 12px;
+}
+
+.auth-page {
+  min-height: calc(100vh - 180px);
+  display: grid;
+  align-items: center;
+}
+
+.auth-panel {
+  width: min(480px, 100%);
+  display: grid;
+  gap: 16px;
+  margin: 0 auto;
+}
+
+.auth-heading {
+  display: grid;
+  gap: 10px;
+  text-align: center;
+}
+
+.auth-heading h1 {
+  color: #111827;
+  font-size: 36px;
+  line-height: 1.1;
+  margin: 0;
+}
+
+.auth-heading p {
+  max-width: none;
+}
+
+.auth-form {
+  margin-top: 0;
 }
 
 .ticket-actions,
@@ -567,6 +746,11 @@ dd {
     gap: 12px;
   }
 
+  .session-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
   main {
     width: min(100% - 28px, 1080px);
     padding: 32px 0;
@@ -580,6 +764,23 @@ dd {
   .page-header .primary-link,
   .ticket-detail-header .secondary-link {
     width: 100%;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .section-heading,
+  .recent-ticket-row {
+    grid-template-columns: 1fr;
+  }
+
+  .section-heading {
+    align-items: stretch;
+  }
+
+  .recent-ticket-badges {
+    justify-content: flex-start;
   }
 
   .ticket-filters {
@@ -599,6 +800,12 @@ dd {
   }
 
   .metadata-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .dashboard-grid {
     grid-template-columns: 1fr;
   }
 }

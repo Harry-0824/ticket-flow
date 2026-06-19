@@ -1,0 +1,11 @@
+[build]
+base = "frontend"
+# Netlify 從 frontend 子資料夾安裝依賴並產生 Vite 靜態檔。
+command = "npm ci && npm run build"
+publish = "dist"
+
+[[redirects]]
+# Vue Router 使用 history mode，重新整理深層路由時要回傳 index.html 交給前端接手。
+from = "/*"
+to = "/index.html"
+status = 200
