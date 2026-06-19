@@ -1,12 +1,12 @@
 services:
   - type: web
     name: ticket-flow-api
-    runtime: dotnet
+    runtime: docker
     # 作品部署以免費方案為硬限制；正式 SLA 不應依賴 Render Free。
     plan: free
-    rootDir: backend
-    buildCommand: dotnet publish TicketFlow.Api.csproj -c Release -o out
-    startCommand: dotnet out/TicketFlow.Api.dll
+    branch: main
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
     healthCheckPath: /health
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
