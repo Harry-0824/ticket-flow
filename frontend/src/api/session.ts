@@ -16,6 +16,7 @@ const TOKEN_KEY = 'ticketflow.auth.token'
 const EXPIRES_AT_KEY = 'ticketflow.auth.expiresAt'
 const USER_KEY = 'ticketflow.auth.user'
 
+// Vite 測試與 SSR-like 環境可能沒有 window；集中檢查可避免 localStorage 存取直接拋錯。
 const hasStorage = () => typeof window !== 'undefined' && !!window.localStorage
 
 export const getStoredToken = () =>
@@ -41,6 +42,7 @@ export const readStoredSession = (): AuthSession | null => {
       user: JSON.parse(userJson) as AuthUser,
     }
   } catch {
+    // localStorage 可能被手動修改或留下舊格式，讀取失敗時直接清掉，避免前端卡在半登入狀態。
     clearStoredSession()
     return null
   }
@@ -71,5 +73,6 @@ export const emitUnauthorized = () => {
     return
   }
 
+  // API client 不直接 import router/store，改用瀏覽器事件通知 app shell 統一登出與導頁。
   window.dispatchEvent(new CustomEvent(AUTH_UNAUTHORIZED_EVENT))
 }

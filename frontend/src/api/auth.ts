@@ -19,6 +19,7 @@ export type AuthValidationError = {
 
 const authUrl = (path: string) => `${API_BASE_URL}/auth${path}`
 
+// AuthApiError 保留 status 與後端 validation payload，讓表單可顯示欄位級錯誤而不是只顯示通用失敗。
 export class AuthApiError extends Error {
   readonly status: number
   readonly validation?: AuthValidationError
@@ -31,6 +32,7 @@ export class AuthApiError extends Error {
 }
 
 const requestAuth = async <T>(url: string, body: unknown): Promise<T> => {
+  // 註冊與登入都是公開 POST endpoint，不帶 JWT；成功後才由回傳 session 建立登入狀態。
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -49,6 +51,7 @@ const requestAuth = async <T>(url: string, body: unknown): Promise<T> => {
 const readAuthValidationError = async (
   response: Response,
 ): Promise<AuthValidationError | undefined> => {
+  // 後端只在 400 回傳 validation shape，其他錯誤交由 status 與 fallback message 呈現。
   if (response.status !== 400) {
     return undefined
   }
