@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Npgsql;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net.Mail;
 using System.Security.Claims;
@@ -24,10 +26,9 @@ builder.Services.AddDbContext<TicketFlowDbContext>(options =>
 {
     if (databaseProvider.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase))
     {
-        // Render 正式環境連 Supabase PostgreSQL；EnableRetryOnFailure 可降低短暫網路抖動造成的部署啟動失敗。
-        options.UseNpgsql(
-            GetRequiredConnectionString(builder.Configuration, "TicketFlowPostgres"),
-            npgsqlOptions => npgsqlOptions.EnableRetryOnFailure());
+        // Render 正式環境連 Supabase PostgreSQL。註冊 / CRUD 都是非冪等寫入，因此不在 EF Core 層自動重試，
+        // 避免連線池回報暫時性錯誤時重送 INSERT，造成資料已寫入但 API 回 500 的情境。
+        options.UseNpgsql(GetRequiredConnectionString(builder.Configuration, "TicketFlowPostgres"));
         return;
     }
 
@@ -150,12 +151,7 @@ auth.MapPost("/register", async (
 
     if (emailExists)
     {
-        return Results.BadRequest(new ValidationErrorResponse(
-            "請修正註冊欄位後再送出。",
-            new Dictionary<string, string[]>
-            {
-                ["email"] = ["Email 已被註冊。"]
-            }));
+        return DuplicateEmail();
     }
 
     var now = DateTime.UtcNow;
@@ -171,7 +167,16 @@ auth.MapPost("/register", async (
     user.PasswordHash = passwordHasher.HashPassword(user, request.Password);
 
     db.ApplicationUsers.Add(user);
-    await db.SaveChangesAsync();
+    try
+    {
+        await db.SaveChangesAsync();
+    }
+    catch (DbUpdateException exception) when (IsUniqueConstraintViolation(exception))
+    {
+        // AnyAsync 是友善的預先檢查，但正式環境仍可能遇到同 email 併發註冊。
+        // 唯一索引才是最後防線，這裡把資料庫例外轉成一致的 validation response。
+        return DuplicateEmail();
+    }
 
     return Results.Created("/api/auth/login", CreateAuthResponse(user, settings));
 })
@@ -492,6 +497,18 @@ static IResult InvalidLogin() =>
     Results.Json(
         new ErrorResponse("Email 或密碼不正確。"),
         statusCode: StatusCodes.Status401Unauthorized);
+
+static IResult DuplicateEmail() =>
+    Results.BadRequest(new ValidationErrorResponse(
+        "請修正註冊欄位後再送出。",
+        new Dictionary<string, string[]>
+        {
+            ["email"] = ["Email 已被註冊。"]
+        }));
+
+static bool IsUniqueConstraintViolation(DbUpdateException exception) =>
+    exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } ||
+    exception.InnerException is SqliteException { SqliteErrorCode: 19 };
 
 sealed record ValidationErrorResponse(string Message, Dictionary<string, string[]> Errors);
 
