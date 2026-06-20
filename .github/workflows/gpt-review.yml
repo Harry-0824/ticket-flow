@@ -340,12 +340,17 @@ jobs:
 
           cat /tmp/gpt_gate.json
 
-          {
-            echo "verdict=$(python3 -c 'import json; print(json.load(open(\"/tmp/gpt_gate.json\", encoding=\"utf-8\")).get(\"verdict\", \"infra_error\"))')"
-            echo "risk=$(python3 -c 'import json; print(json.load(open(\"/tmp/gpt_gate.json\", encoding=\"utf-8\")).get(\"risk\", \"unknown\"))')"
-            echo "blocking_reasons=$(python3 -c 'import json; print(\" | \".join(json.load(open(\"/tmp/gpt_gate.json\", encoding=\"utf-8\")).get(\"blocking_reasons\", [])[:5]))')"
-            echo "required_actions=$(python3 -c 'import json; print(\" | \".join(json.load(open(\"/tmp/gpt_gate.json\", encoding=\"utf-8\")).get(\"required_actions\", [])[:5]))')"
-          } >> "$GITHUB_OUTPUT"
+          python3 <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+
+          with open("/tmp/gpt_gate.json", encoding="utf-8") as handle:
+              gate = json.load(handle)
+
+          print(f"verdict={gate.get('verdict', 'infra_error')}")
+          print(f"risk={gate.get('risk', 'unknown')}")
+          print("blocking_reasons=" + " | ".join(gate.get("blocking_reasons", [])[:5]))
+          print("required_actions=" + " | ".join(gate.get("required_actions", [])[:5]))
+          PY
 
       - name: Publish GPT gate result
         if: steps.context.outputs.mode == 'development' && steps.check_key.outputs.key_missing == 'false'
