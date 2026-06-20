@@ -14,6 +14,8 @@ using TicketFlow.Api.Data;
 using TicketFlow.Api.Models;
 
 const string CorsPolicyName = "ConfiguredFrontendOrigins";
+const int DefaultJwtExpiresMinutes = 60;
+const int MaxJwtExpiresMinutes = 1440;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -204,10 +206,20 @@ auth.MapPost("/register", async (
             return DuplicateEmail();
         }
 
-        return Results.Created("/api/auth/login", CreateAuthResponse(persistedUser, settings));
+        return CreateAuthResult(
+            persistedUser,
+            settings,
+            logger,
+            "register-post-commit-reconcile",
+            response => Results.Created("/api/auth/login", response));
     }
 
-    return Results.Created("/api/auth/login", CreateAuthResponse(user, settings));
+    return CreateAuthResult(
+        user,
+        settings,
+        logger,
+        "register",
+        response => Results.Created("/api/auth/login", response));
 })
     .WithName("Register");
 
@@ -215,6 +227,7 @@ auth.MapPost("/login", async (
     LoginRequest request,
     TicketFlowDbContext db,
     IPasswordHasher<ApplicationUser> passwordHasher,
+    ILogger<Program> logger,
     JwtSettings settings) =>
 {
     var email = request.Email.Trim();
@@ -232,7 +245,12 @@ auth.MapPost("/login", async (
         return InvalidLogin();
     }
 
-    return Results.Ok(CreateAuthResponse(user, settings));
+    return CreateAuthResult(
+        user,
+        settings,
+        logger,
+        "login",
+        Results.Ok);
 })
     .WithName("Login");
 
@@ -453,7 +471,7 @@ static JwtSettings GetJwtSettings(IConfiguration configuration, IHostEnvironment
     var issuer = configuration["Jwt:Issuer"] ?? "TicketFlow";
     var audience = configuration["Jwt:Audience"] ?? "TicketFlowClient";
     var secret = configuration["Jwt:Secret"];
-    var expiresMinutes = configuration.GetValue("Jwt:ExpiresMinutes", 60);
+    var expiresMinutes = configuration.GetValue("Jwt:ExpiresMinutes", DefaultJwtExpiresMinutes);
 
     if (string.IsNullOrWhiteSpace(secret))
     {
@@ -476,7 +494,40 @@ static JwtSettings GetJwtSettings(IConfiguration configuration, IHostEnvironment
         throw new InvalidOperationException("JWT expiration minutes must be greater than 0.");
     }
 
+    if (expiresMinutes > MaxJwtExpiresMinutes)
+    {
+        // 部署平台的 env var 若誤填過大的數字，DateTime.AddMinutes 會在登入/註冊時才爆 500。
+        // 對作品 demo 來說，回到 60 分鐘比讓正式 auth flow 整段不可用更安全。
+        expiresMinutes = DefaultJwtExpiresMinutes;
+    }
+
     return new JwtSettings(issuer, audience, secret, expiresMinutes);
+}
+
+static IResult CreateAuthResult(
+    ApplicationUser user,
+    JwtSettings settings,
+    ILogger logger,
+    string operation,
+    Func<AuthResponse, IResult> createResult)
+{
+    try
+    {
+        return createResult(CreateAuthResponse(user, settings));
+    }
+    catch (Exception exception) when (exception is not OperationCanceledException)
+    {
+        logger.LogError(
+            exception,
+            "Auth response creation failed during {Operation} for user id {UserId}. Check JWT issuer, audience, secret length, and expiration settings.",
+            operation,
+            user.Id);
+
+        return Results.Problem(
+            title: "Auth response creation failed.",
+            detail: "Authentication succeeded, but the server could not create the auth response. Check server logs for JWT configuration details.",
+            statusCode: StatusCodes.Status500InternalServerError);
+    }
 }
 
 static AuthResponse CreateAuthResponse(ApplicationUser user, JwtSettings settings)

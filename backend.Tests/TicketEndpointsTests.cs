@@ -104,6 +104,38 @@ public class TicketEndpointsTests(TicketFlowApiFactory factory)
     }
 
     [Fact]
+    public async Task RegisterLoginFlow_WhenJwtExpirationIsTooLarge_UsesSafeDefault()
+    {
+        var email = CreateUniqueEmail();
+        const string password = "Password123!";
+        using var jwtFactory = new TicketFlowApiFactory(new Dictionary<string, string?>
+        {
+            ["Jwt:ExpiresMinutes"] = "2147483647"
+        });
+        using var jwtClient = jwtFactory.CreateClient();
+
+        var registerResponse = await jwtClient.PostAsJsonAsync("/api/auth/register", new
+        {
+            email,
+            displayName = "Large Expiration User",
+            password
+        });
+
+        Assert.Equal(HttpStatusCode.Created, registerResponse.StatusCode);
+
+        var loginResponse = await jwtClient.PostAsJsonAsync("/api/auth/login", new
+        {
+            email,
+            password
+        });
+
+        Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
+        var loggedIn = await loginResponse.Content.ReadFromJsonAsync<AuthResponse>(JsonOptions);
+        Assert.NotNull(loggedIn?.Token);
+        Assert.InRange(loggedIn.ExpiresAt - DateTime.UtcNow, TimeSpan.FromMinutes(55), TimeSpan.FromMinutes(61));
+    }
+
+    [Fact]
     public async Task TicketApi_RejectsAnonymousRequests()
     {
         var response = await client.GetAsync("/api/tickets");
