@@ -136,6 +136,7 @@ auth.MapPost("/register", async (
     RegisterRequest request,
     TicketFlowDbContext db,
     IPasswordHasher<ApplicationUser> passwordHasher,
+    ILogger<Program> logger,
     JwtSettings settings) =>
 {
     var validationError = ValidateRegister(request);
@@ -176,6 +177,34 @@ auth.MapPost("/register", async (
         // AnyAsync 是友善的預先檢查，但正式環境仍可能遇到同 email 併發註冊。
         // 唯一索引才是最後防線，這裡把資料庫例外轉成一致的 validation response。
         return DuplicateEmail();
+    }
+    catch (Exception exception) when (exception is not OperationCanceledException)
+    {
+        // Supabase pooler / Npgsql 可能在 INSERT 已 commit 後，因連線回收或 response 階段錯誤丟例外。
+        // 重新查詢可把「資料已成功寫入」的情境轉回正常註冊回應；若查不到則保留原始 500。
+        logger.LogWarning(exception, "Register save failed; checking whether the user was persisted.");
+        db.ChangeTracker.Clear();
+
+        var persistedUser = await db.ApplicationUsers
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.NormalizedEmail == normalizedEmail);
+
+        if (persistedUser is null)
+        {
+            throw;
+        }
+
+        var passwordResult = passwordHasher.VerifyHashedPassword(
+            persistedUser,
+            persistedUser.PasswordHash,
+            request.Password);
+
+        if (passwordResult == PasswordVerificationResult.Failed)
+        {
+            return DuplicateEmail();
+        }
+
+        return Results.Created("/api/auth/login", CreateAuthResponse(persistedUser, settings));
     }
 
     return Results.Created("/api/auth/login", CreateAuthResponse(user, settings));

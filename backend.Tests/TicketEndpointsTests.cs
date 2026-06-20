@@ -3,9 +3,11 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
-using TicketFlow.Api.Data;
 using TicketFlow.Api.Models;
+using TicketFlow.Api.Data;
 
 namespace TicketFlow.Api.Tests;
 
@@ -68,6 +70,37 @@ public class TicketEndpointsTests(TicketFlowApiFactory factory)
         var user = db.ApplicationUsers.Single(item => item.Email == email);
         Assert.NotEqual(password, user.PasswordHash);
         Assert.NotEmpty(user.PasswordHash);
+    }
+
+    [Fact]
+    public async Task Register_WhenSaveThrowsAfterPersistingUser_ReturnsCreatedAuthResponse()
+    {
+        var email = CreateUniqueEmail();
+        var normalizedEmail = email.ToUpperInvariant();
+        const string password = "Password123!";
+        using var postCommitFactory = new TicketFlowApiFactory(
+            new ThrowAfterPersistingUserInterceptor(normalizedEmail));
+        using var postCommitClient = postCommitFactory.CreateClient();
+
+        var registerResponse = await postCommitClient.PostAsJsonAsync("/api/auth/register", new
+        {
+            email,
+            displayName = "Post Commit User",
+            password
+        });
+
+        Assert.Equal(HttpStatusCode.Created, registerResponse.StatusCode);
+        var registered = await registerResponse.Content.ReadFromJsonAsync<AuthResponse>(JsonOptions);
+        Assert.NotNull(registered?.Token);
+        Assert.Equal(email, registered.User.Email);
+
+        var loginResponse = await postCommitClient.PostAsJsonAsync("/api/auth/login", new
+        {
+            email,
+            password
+        });
+
+        Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
     }
 
     [Fact]
@@ -200,6 +233,30 @@ public class TicketEndpointsTests(TicketFlowApiFactory factory)
     }
 
     private static string CreateUniqueEmail() => $"user-{Guid.NewGuid():N}@example.com";
+
+    private sealed class ThrowAfterPersistingUserInterceptor(string normalizedEmail) : SaveChangesInterceptor
+    {
+        private bool hasThrown;
+
+        public override ValueTask<int> SavedChangesAsync(
+            SaveChangesCompletedEventData eventData,
+            int result,
+            CancellationToken cancellationToken = default)
+        {
+            var shouldThrow = !hasThrown &&
+                eventData.Context?.ChangeTracker.Entries<ApplicationUser>().Any(entry =>
+                    entry.Entity.NormalizedEmail == normalizedEmail &&
+                    entry.State == EntityState.Unchanged) == true;
+
+            if (shouldThrow)
+            {
+                hasThrown = true;
+                throw new InvalidOperationException("Simulated post-commit register failure.");
+            }
+
+            return new ValueTask<int>(result);
+        }
+    }
 
     private sealed record HealthResponse(string Status);
 
