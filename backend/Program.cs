@@ -16,6 +16,7 @@ using TicketFlow.Api.Models;
 const string CorsPolicyName = "ConfiguredFrontendOrigins";
 const int DefaultJwtExpiresMinutes = 60;
 const int MaxJwtExpiresMinutes = 1440;
+const int PostgresCommandTimeoutSeconds = 60;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,7 +31,11 @@ builder.Services.AddDbContext<TicketFlowDbContext>(options =>
     {
         // Render 正式環境連 Supabase PostgreSQL。註冊 / CRUD 都是非冪等寫入，因此不在 EF Core 層自動重試，
         // 避免連線池回報暫時性錯誤時重送 INSERT，造成資料已寫入但 API 回 500 的情境。
-        options.UseNpgsql(GetRequiredConnectionString(builder.Configuration, "TicketFlowPostgres"));
+        // Render Free + Supabase pooler 偶爾會在讀取回應時超過 Npgsql 預設 30 秒。
+        // 先拉長 timeout，不啟用全域 retry，避免非冪等 INSERT 在連線逾時後被重送。
+        options.UseNpgsql(
+            GetRequiredConnectionString(builder.Configuration, "TicketFlowPostgres"),
+            postgresOptions => postgresOptions.CommandTimeout(PostgresCommandTimeoutSeconds));
         return;
     }
 
