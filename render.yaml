@@ -28,4 +28,4 @@ services:
         value: 60
       - key: Cors__AllowedOrigins
         # 部署後改成實際 Netlify 網址，讓瀏覽器允許前端呼叫 Render API。
-        value: https://your-netlify-site.netlify.app
+        value: https://ticket-flow-harry-0824.netlify.app/
