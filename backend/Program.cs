@@ -137,6 +137,26 @@ app.UseAuthorization();
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy" }))
     .WithName("GetHealth");
 
+app.MapGet("/build-info", (IHostEnvironment environment, IConfiguration configuration) =>
+    Results.Ok(new
+    {
+        commit = GetFirstConfiguredValue(
+            configuration,
+            "RENDER_GIT_COMMIT",
+            "GIT_COMMIT_SHA",
+            "GIT_COMMIT",
+            "COMMIT_SHA"),
+        environment = string.IsNullOrWhiteSpace(environment.EnvironmentName)
+            ? "unknown"
+            : environment.EnvironmentName,
+        buildTime = GetFirstConfiguredValue(
+            configuration,
+            "BUILD_TIME",
+            "BUILD_TIME_UTC",
+            "RENDER_BUILD_TIME")
+    }))
+    .WithName("GetBuildInfo");
+
 // Auth API 由後端自建；Supabase 在本專案只作 PostgreSQL，不使用 Supabase Auth。
 var auth = app.MapGroup("/api/auth").WithTags("Auth");
 
@@ -527,6 +547,21 @@ static string[] GetCorsAllowedOrigins(IConfiguration configuration)
         .Where(origin => !string.IsNullOrWhiteSpace(origin))
         .Distinct(StringComparer.OrdinalIgnoreCase)
         .ToArray();
+}
+
+static string GetFirstConfiguredValue(IConfiguration configuration, params string[] keys)
+{
+    foreach (var key in keys)
+    {
+        var value = configuration[key];
+
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            return value;
+        }
+    }
+
+    return "unknown";
 }
 
 static JwtSettings GetJwtSettings(IConfiguration configuration, IHostEnvironment environment)
