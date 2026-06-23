@@ -112,15 +112,16 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
+// Migration 在 Development 與 Production 都自動套用，避免部署後資料庫 schema 落後於 code。
+// 小作品可接受；正式產品建議改由 CI/CD migration pipeline 控管。
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<TicketFlowDbContext>();
+    db.Database.Migrate();
+}
+
 if (app.Environment.IsDevelopment())
 {
-    using (var scope = app.Services.CreateScope())
-    {
-        var db = scope.ServiceProvider.GetRequiredService<TicketFlowDbContext>();
-        // 開發環境自動套 migration，方便用全新 SQLite 檔快速啟動；正式環境交由部署流程控管。
-        db.Database.Migrate();
-    }
-
     app.UseSwagger();
     app.UseSwaggerUI();
 }
