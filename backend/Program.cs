@@ -6,7 +6,6 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Npgsql;
 using System.IdentityModel.Tokens.Jwt;
-using System.Net.Mail;
 using System.Security.Claims;
 using System.Text.Json.Serialization;
 using TicketFlow.Api.Data;
@@ -172,20 +171,20 @@ auth.MapPost("/register", async (
     ILogger<Program> logger,
     JwtService jwtService) =>
 {
-    var validationError = ValidateRegister(request);
+    var validationError = RegisterValidator.Validate(request);
     if (validationError is not null)
     {
         return validationError;
     }
 
     var email = request.Email.Trim();
-    var normalizedEmail = NormalizeEmail(email);
+    var normalizedEmail = RegisterValidator.NormalizeEmail(email);
     // 以 NormalizedEmail 做唯一檢查，避免大小寫不同造成重複帳號。
     var emailExists = await db.ApplicationUsers.AnyAsync(user => user.NormalizedEmail == normalizedEmail);
 
     if (emailExists)
     {
-        return DuplicateEmail();
+        return RegisterValidator.DuplicateEmail();
     }
 
     var now = DateTime.UtcNow;
@@ -209,7 +208,7 @@ auth.MapPost("/register", async (
     {
         // AnyAsync 是友善的預先檢查，但正式環境仍可能遇到同 email 併發註冊。
         // 唯一索引才是最後防線，這裡把資料庫例外轉成一致的 validation response。
-        return DuplicateEmail();
+        return RegisterValidator.DuplicateEmail();
     }
     catch (Exception exception) when (exception is not OperationCanceledException)
     {
@@ -234,7 +233,7 @@ auth.MapPost("/register", async (
 
         if (passwordResult == PasswordVerificationResult.Failed)
         {
-            return DuplicateEmail();
+            return RegisterValidator.DuplicateEmail();
         }
 
         return jwtService.CreateAuthResult(
@@ -260,7 +259,7 @@ auth.MapPost("/login", async (
     JwtService jwtService) =>
 {
     var email = request.Email.Trim();
-    var normalizedEmail = NormalizeEmail(email);
+    var normalizedEmail = RegisterValidator.NormalizeEmail(email);
     var user = await db.ApplicationUsers.FirstOrDefaultAsync(item => item.NormalizedEmail == normalizedEmail);
 
     if (user is null)
@@ -352,7 +351,7 @@ tickets.MapPost("", async (Ticket ticket, TicketFlowDbContext db, HttpContext ht
         return Results.Unauthorized();
     }
 
-    var validationError = ValidateTicket(ticket);
+    var validationError = TicketValidator.Validate(ticket);
     if (validationError is not null)
     {
         return validationError;
@@ -382,7 +381,7 @@ tickets.MapPut("/{id:int}", async (int id, Ticket ticket, TicketFlowDbContext db
         return Results.Unauthorized();
     }
 
-    var validationError = ValidateTicket(ticket);
+    var validationError = TicketValidator.Validate(ticket);
     if (validationError is not null)
     {
         return validationError;
@@ -441,70 +440,6 @@ tickets.MapDelete("/{id:int}", async (int id, TicketFlowDbContext db, HttpContex
     .WithName("DeleteTicket");
 
 app.Run();
-
-static IResult? ValidateRegister(RegisterRequest request)
-{
-    var errors = new Dictionary<string, string[]>();
-
-    if (string.IsNullOrWhiteSpace(request.Email) || !IsValidEmail(request.Email.Trim()))
-    {
-        errors["email"] = ["請輸入有效的 Email。"];
-    }
-    else if (request.Email.Trim().Length > 320)
-    {
-        errors["email"] = ["Email 最多 320 個字元。"];
-    }
-
-    if (string.IsNullOrWhiteSpace(request.DisplayName))
-    {
-        errors["displayName"] = ["顯示名稱為必填。"];
-    }
-    else if (request.DisplayName.Trim().Length > 120)
-    {
-        errors["displayName"] = ["顯示名稱最多 120 個字元。"];
-    }
-
-    if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < 8)
-    {
-        errors["password"] = ["密碼至少需要 8 個字元。"];
-    }
-
-    return errors.Count == 0
-        ? null
-        : Results.BadRequest(new ValidationErrorResponse("請修正註冊欄位後再送出。", errors));
-}
-
-static IResult? ValidateTicket(Ticket ticket)
-{
-    var errors = new Dictionary<string, string[]>();
-
-    if (string.IsNullOrWhiteSpace(ticket.Title))
-    {
-        errors["title"] = ["標題為必填。"];
-    }
-    else if (ticket.Title.Trim().Length > 200)
-    {
-        errors["title"] = ["標題最多 200 個字元。"];
-    }
-
-    if (string.IsNullOrWhiteSpace(ticket.Description))
-    {
-        errors["description"] = ["描述為必填。"];
-    }
-    else if (ticket.Description.Trim().Length > 2000)
-    {
-        errors["description"] = ["描述最多 2000 個字元。"];
-    }
-
-    if (ticket.Assignee.Trim().Length > 120)
-    {
-        errors["assignee"] = ["指派對象最多 120 個字元。"];
-    }
-
-    return errors.Count == 0
-        ? null
-        : Results.BadRequest(new ValidationErrorResponse("請修正工單欄位後再送出。", errors));
-}
 
 static int? GetCurrentUserId(HttpContext httpContext)
 {
@@ -566,32 +501,10 @@ static string GetFirstConfiguredValue(IConfiguration configuration, params strin
     return "unknown";
 }
 
-static string NormalizeEmail(string email) => email.Trim().ToUpperInvariant();
-
-static bool IsValidEmail(string email)
-{
-    try
-    {
-        return string.Equals(new MailAddress(email).Address, email, StringComparison.OrdinalIgnoreCase);
-    }
-    catch (FormatException)
-    {
-        return false;
-    }
-}
-
 static IResult InvalidLogin() =>
     Results.Json(
         new ErrorResponse("Email 或密碼不正確。"),
         statusCode: StatusCodes.Status401Unauthorized);
-
-static IResult DuplicateEmail() =>
-    Results.BadRequest(new ValidationErrorResponse(
-        "請修正註冊欄位後再送出。",
-        new Dictionary<string, string[]>
-        {
-            ["email"] = ["Email 已被註冊。"]
-        }));
 
 static bool IsUniqueConstraintViolation(DbUpdateException exception) =>
     exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } ||
@@ -599,7 +512,7 @@ static bool IsUniqueConstraintViolation(DbUpdateException exception) =>
 
 sealed record ValidationErrorResponse(string Message, Dictionary<string, string[]> Errors);
 
-sealed record RegisterRequest(string Email, string DisplayName, string Password);
+public sealed record RegisterRequest(string Email, string DisplayName, string Password);
 
 sealed record LoginRequest(string Email, string Password);
 
