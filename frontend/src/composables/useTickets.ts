@@ -1,9 +1,16 @@
 import { ref } from 'vue'
-import { getTickets } from '../api/tickets'
-import type { TicketQueryParams } from '../api/tickets'
+import {
+  createTicket as createTicketRequest,
+  getTicketApiErrorMessage,
+  getTickets,
+} from '../api/tickets'
+import type { CreateTicketInput, TicketQueryParams } from '../api/tickets'
 import type { Ticket } from '../types/ticket'
 
 const loadTicketsErrorMessage = '目前無法載入工單，請稍後再試。'
+const createTicketErrorMessage = '目前無法建立工單，請稍後再試。'
+
+export type { CreateTicketInput }
 
 export const useTickets = () => {
   const tickets = ref<Ticket[]>([])
@@ -23,10 +30,25 @@ export const useTickets = () => {
     }
   }
 
+  const createTicket = async (payload: CreateTicketInput) => {
+    errorMessage.value = ''
+
+    try {
+      return await createTicketRequest(payload)
+    } catch (error) {
+      errorMessage.value = getTicketApiErrorMessage(
+        error,
+        createTicketErrorMessage,
+      )
+      return undefined
+    }
+  }
+
   return {
     tickets,
     isLoading,
     errorMessage,
     loadTickets,
+    createTicket,
   }
 }
