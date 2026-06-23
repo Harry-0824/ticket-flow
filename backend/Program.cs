@@ -267,9 +267,18 @@ tickets.MapGet("", async (
     TicketStatus? status,
     TicketPriority? priority,
     string? keyword,
-    TicketFlowDbContext db) =>
+    TicketFlowDbContext db,
+    HttpContext httpContext) =>
 {
-    var query = db.Tickets.AsNoTracking();
+    var currentUserId = GetCurrentUserId(httpContext);
+    if (currentUserId is null)
+    {
+        return Results.Unauthorized();
+    }
+
+    var query = db.Tickets
+        .AsNoTracking()
+        .Where(ticket => ticket.UserId == currentUserId.Value);
 
     if (status is not null)
     {
@@ -289,20 +298,37 @@ tickets.MapGet("", async (
             ticket.Description.Contains(searchTerm));
     }
 
-    return await query.ToListAsync();
+    return Results.Ok(await query.ToListAsync());
 })
     .WithName("ListTickets");
 
-tickets.MapGet("/{id:int}", async (int id, TicketFlowDbContext db) =>
+tickets.MapGet("/{id:int}", async (int id, TicketFlowDbContext db, HttpContext httpContext) =>
 {
+    var currentUserId = GetCurrentUserId(httpContext);
+    if (currentUserId is null)
+    {
+        return Results.Unauthorized();
+    }
+
     var ticket = await db.Tickets.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id);
 
-    return ticket is null ? Results.NotFound() : Results.Ok(ticket);
+    if (ticket is null)
+    {
+        return Results.NotFound();
+    }
+
+    return ticket.UserId == currentUserId.Value ? Results.Ok(ticket) : Results.Forbid();
 })
     .WithName("GetTicket");
 
-tickets.MapPost("", async (Ticket ticket, TicketFlowDbContext db) =>
+tickets.MapPost("", async (Ticket ticket, TicketFlowDbContext db, HttpContext httpContext) =>
 {
+    var currentUserId = GetCurrentUserId(httpContext);
+    if (currentUserId is null)
+    {
+        return Results.Unauthorized();
+    }
+
     var validationError = ValidateTicket(ticket);
     if (validationError is not null)
     {
@@ -314,6 +340,7 @@ tickets.MapPost("", async (Ticket ticket, TicketFlowDbContext db) =>
     ticket.Title = ticket.Title.Trim();
     ticket.Description = ticket.Description.Trim();
     ticket.Assignee = ticket.Assignee.Trim();
+    ticket.UserId = currentUserId.Value;
     ticket.CreatedAt = now;
     ticket.UpdatedAt = now;
 
@@ -324,8 +351,14 @@ tickets.MapPost("", async (Ticket ticket, TicketFlowDbContext db) =>
 })
     .WithName("CreateTicket");
 
-tickets.MapPut("/{id:int}", async (int id, Ticket ticket, TicketFlowDbContext db) =>
+tickets.MapPut("/{id:int}", async (int id, Ticket ticket, TicketFlowDbContext db, HttpContext httpContext) =>
 {
+    var currentUserId = GetCurrentUserId(httpContext);
+    if (currentUserId is null)
+    {
+        return Results.Unauthorized();
+    }
+
     var validationError = ValidateTicket(ticket);
     if (validationError is not null)
     {
@@ -337,6 +370,11 @@ tickets.MapPut("/{id:int}", async (int id, Ticket ticket, TicketFlowDbContext db
     if (existingTicket is null)
     {
         return Results.NotFound();
+    }
+
+    if (existingTicket.UserId != currentUserId.Value)
+    {
+        return Results.Forbid();
     }
 
     existingTicket.Title = ticket.Title.Trim();
@@ -352,13 +390,24 @@ tickets.MapPut("/{id:int}", async (int id, Ticket ticket, TicketFlowDbContext db
 })
     .WithName("UpdateTicket");
 
-tickets.MapDelete("/{id:int}", async (int id, TicketFlowDbContext db) =>
+tickets.MapDelete("/{id:int}", async (int id, TicketFlowDbContext db, HttpContext httpContext) =>
 {
+    var currentUserId = GetCurrentUserId(httpContext);
+    if (currentUserId is null)
+    {
+        return Results.Unauthorized();
+    }
+
     var ticket = await db.Tickets.FindAsync(id);
 
     if (ticket is null)
     {
         return Results.NotFound();
+    }
+
+    if (ticket.UserId != currentUserId.Value)
+    {
+        return Results.Forbid();
     }
 
     db.Tickets.Remove(ticket);
@@ -432,6 +481,14 @@ static IResult? ValidateTicket(Ticket ticket)
     return errors.Count == 0
         ? null
         : Results.BadRequest(new ValidationErrorResponse("請修正工單欄位後再送出。", errors));
+}
+
+static int? GetCurrentUserId(HttpContext httpContext)
+{
+    var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier) ??
+        httpContext.User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+
+    return int.TryParse(userId, out var parsedUserId) ? parsedUserId : null;
 }
 
 static string GetDatabaseProvider(IConfiguration configuration, IHostEnvironment environment)

@@ -36,6 +36,11 @@ public class TicketFlowDbContext(DbContextOptions<TicketFlowDbContext> options) 
             ticket.Property(item => item.Status).IsRequired();
             ticket.Property(item => item.Priority).IsRequired();
             ticket.Property(item => item.Assignee).HasMaxLength(120).IsRequired();
+            ticket.HasIndex(item => item.UserId);
+            ticket.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(item => item.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
             ticket.Property(item => item.CreatedAt).IsRequired();
             ticket.Property(item => item.UpdatedAt).IsRequired();
         });
