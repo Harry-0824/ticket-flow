@@ -3,28 +3,22 @@ import { onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { getTickets } from '../api/tickets'
 import TicketTable from '../components/TicketTable.vue'
-import type { Ticket, TicketPriority, TicketStatus } from '../types/ticket'
+import { useFilters } from '../composables/useFilters'
+import type { Ticket } from '../types/ticket'
 
 const tickets = ref<Ticket[]>([])
 const isLoading = ref(true)
 const errorMessage = ref('')
-const statusFilter = ref<TicketStatus | ''>('')
-const priorityFilter = ref<TicketPriority | ''>('')
-const keywordFilter = ref('')
-
-const statusOptions: TicketStatus[] = ['Open', 'InProgress', 'Done', 'Archived']
-const priorityOptions: TicketPriority[] = ['Low', 'Medium', 'High']
-const statusLabels: Record<TicketStatus, string> = {
-  Open: '待處理',
-  InProgress: '處理中',
-  Done: '已完成',
-  Archived: '已封存',
-}
-const priorityLabels: Record<TicketPriority, string> = {
-  Low: '低',
-  Medium: '中',
-  High: '高',
-}
+const {
+  statusFilter,
+  priorityFilter,
+  keywordFilter,
+  statusOptions,
+  priorityOptions,
+  statusLabels,
+  priorityLabels,
+  clearFilters: resetFilters,
+} = useFilters()
 
 const loadTickets = async () => {
   isLoading.value = true
@@ -44,9 +38,7 @@ const loadTickets = async () => {
 }
 
 const clearFilters = async () => {
-  statusFilter.value = ''
-  priorityFilter.value = ''
-  keywordFilter.value = ''
+  resetFilters()
   await loadTickets()
 }
 
