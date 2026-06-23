@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: ticket-flow-api
+    runtime: docker
+    # 作品部署以免費方案為硬限制；正式 SLA 不應依賴 Render Free。
+    plan: free
+    branch: main
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /health
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: Database__Provider
+        # Render 正式環境連 Supabase managed PostgreSQL，本機開發仍可用 SQLite。
+        value: PostgreSQL
+      - key: ConnectionStrings__TicketFlowPostgres
+        # Supabase connection string 必須在 Render dashboard 設定，不能提交到 repo。
+        sync: false
+      - key: Jwt__Issuer
+        value: TicketFlow
+      - key: Jwt__Audience
+        value: TicketFlowClient
+      - key: Jwt__Secret
+        # JWT 簽章密鑰屬於 secret，正式環境缺少時後端會拒絕啟動。
+        sync: false
+      - key: Jwt__ExpiresMinutes
+        value: 60
+      - key: Cors__AllowedOrigins
+        # 部署後改成實際 Netlify 網址，讓瀏覽器允許前端呼叫 Render API。
+        value: https://ticket-flow-harry-0824.netlify.app/
