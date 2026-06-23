@@ -1,14 +1,10 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
-import { getTickets } from '../api/tickets'
 import TicketTable from '../components/TicketTable.vue'
 import { useFilters } from '../composables/useFilters'
-import type { Ticket } from '../types/ticket'
+import { useTickets } from '../composables/useTickets'
 
-const tickets = ref<Ticket[]>([])
-const isLoading = ref(true)
-const errorMessage = ref('')
 const {
   statusFilter,
   priorityFilter,
@@ -19,31 +15,22 @@ const {
   priorityLabels,
   clearFilters: resetFilters,
 } = useFilters()
+const { tickets, isLoading, errorMessage, loadTickets } = useTickets()
 
-const loadTickets = async () => {
-  isLoading.value = true
-  errorMessage.value = ''
-
-  try {
-    tickets.value = await getTickets({
-      status: statusFilter.value || undefined,
-      priority: priorityFilter.value || undefined,
-      keyword: keywordFilter.value.trim() || undefined,
-    })
-  } catch {
-    errorMessage.value = '目前無法載入工單，請稍後再試。'
-  } finally {
-    isLoading.value = false
-  }
-}
+const loadFilteredTickets = () =>
+  loadTickets({
+    status: statusFilter.value || undefined,
+    priority: priorityFilter.value || undefined,
+    keyword: keywordFilter.value.trim() || undefined,
+  })
 
 const clearFilters = async () => {
   resetFilters()
-  await loadTickets()
+  await loadFilteredTickets()
 }
 
 onMounted(async () => {
-  await loadTickets()
+  await loadFilteredTickets()
 })
 </script>
 
@@ -57,7 +44,7 @@ onMounted(async () => {
       <RouterLink class="primary-link" to="/tickets/new">建立工單</RouterLink>
     </header>
 
-    <form class="ticket-filters" @submit.prevent="loadTickets">
+    <form class="ticket-filters" @submit.prevent="loadFilteredTickets">
       <div class="filter-heading">
         <strong>篩選條件</strong>
         <span>縮小目前工單佇列的檢視範圍</span>
