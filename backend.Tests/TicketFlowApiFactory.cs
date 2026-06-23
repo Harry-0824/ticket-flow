@@ -65,10 +65,8 @@ public sealed class TicketFlowApiFactory : WebApplicationFactory<Program>
                 }
             });
 
-            using var serviceProvider = services.BuildServiceProvider();
-            using var scope = serviceProvider.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<TicketFlowDbContext>();
-            db.Database.EnsureCreated();
+            // Program.cs runs migrations during startup. Pre-creating the schema
+            // here conflicts with that path once startup migration is enabled.
         });
     }
 

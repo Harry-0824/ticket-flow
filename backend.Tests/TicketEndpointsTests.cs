@@ -29,6 +29,33 @@ public class TicketEndpointsTests(TicketFlowApiFactory factory)
     }
 
     [Fact]
+    public async Task BuildInfo_WithConfiguredValues_ReturnsDeploymentIdentity()
+    {
+        using var buildInfoFactory = new TicketFlowApiFactory(new Dictionary<string, string?>
+        {
+            ["RENDER_GIT_COMMIT"] = "abc123",
+            ["BUILD_TIME_UTC"] = "2026-06-23T13:00:00Z"
+        });
+        using var buildInfoClient = buildInfoFactory.CreateClient();
+
+        var response = await buildInfoClient.GetFromJsonAsync<BuildInfoResponse>("/build-info");
+
+        Assert.Equal("abc123", response?.Commit);
+        Assert.Equal("Testing", response?.Environment);
+        Assert.Equal("2026-06-23T13:00:00Z", response?.BuildTime);
+    }
+
+    [Fact]
+    public async Task BuildInfo_WithoutConfiguredValues_ReturnsSafeFallbacks()
+    {
+        var response = await client.GetFromJsonAsync<BuildInfoResponse>("/build-info");
+
+        Assert.Equal("unknown", response?.Commit);
+        Assert.Equal("Testing", response?.Environment);
+        Assert.Equal("unknown", response?.BuildTime);
+    }
+
+    [Fact]
     public async Task RegisterLoginFlow_ReturnsJwtAndStoresPasswordHash()
     {
         var email = CreateUniqueEmail();
@@ -291,6 +318,11 @@ public class TicketEndpointsTests(TicketFlowApiFactory factory)
     }
 
     private sealed record HealthResponse(string Status);
+
+    private sealed record BuildInfoResponse(
+        string Commit,
+        string Environment,
+        string BuildTime);
 
     private sealed record ValidationErrorResponse(
         string Message,
