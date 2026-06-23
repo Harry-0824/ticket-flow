@@ -1,17 +1,17 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import {
-  getTicketApiErrorMessage,
-  getTicketById,
-  TicketApiError,
-  updateTicket,
-} from '../api/tickets'
-import type { UpdateTicketInput } from '../api/tickets'
+import { useTickets } from '../composables/useTickets'
+import type { UpdateTicketInput } from '../composables/useTickets'
 import type { TicketPriority, TicketStatus } from '../types/ticket'
 
 const route = useRoute()
 const router = useRouter()
+const {
+  errorMessage: ticketErrorMessage,
+  fetchTicket,
+  updateTicket,
+} = useTickets()
 
 const statusOptions: TicketStatus[] = ['Open', 'InProgress', 'Done', 'Archived']
 const priorityOptions: TicketPriority[] = ['Low', 'Medium', 'High']
@@ -57,21 +57,20 @@ const submitTicket = async () => {
 
   isSubmitting.value = true
 
-  try {
-    const updatedTicket = await updateTicket(ticketId.value, {
-      title: form.title.trim(),
-      description: form.description.trim(),
-      status: form.status,
-      priority: form.priority,
-      assignee: form.assignee.trim(),
-    })
+  const updatedTicket = await updateTicket(ticketId.value, {
+    title: form.title.trim(),
+    description: form.description.trim(),
+    status: form.status,
+    priority: form.priority,
+    assignee: form.assignee.trim(),
+  })
 
+  try {
+    if (!updatedTicket) {
+      submitErrorMessage.value = ticketErrorMessage.value
+      return
+    }
     await router.push(`/tickets/${updatedTicket.id || ticketId.value}`)
-  } catch (error) {
-    submitErrorMessage.value = getTicketApiErrorMessage(
-      error,
-      '目前無法更新工單，請稍後再試。',
-    )
   } finally {
     isSubmitting.value = false
   }
@@ -89,20 +88,23 @@ onMounted(async () => {
   ticketId.value = id
 
   try {
-    const ticket = await getTicketById(id)
+    const ticket = await fetchTicket(id)
+
+    if (ticket === null) {
+      isNotFound.value = true
+      return
+    }
+
+    if (!ticket) {
+      errorMessage.value = ticketErrorMessage.value
+      return
+    }
 
     form.title = ticket.title
     form.description = ticket.description
     form.status = ticket.status
     form.priority = ticket.priority
     form.assignee = ticket.assignee
-  } catch (error) {
-    if (error instanceof TicketApiError && error.status === 404) {
-      isNotFound.value = true
-      return
-    }
-
-    errorMessage.value = '目前無法載入此工單，請稍後再試。'
   } finally {
     isLoading.value = false
   }

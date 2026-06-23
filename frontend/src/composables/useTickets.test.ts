@@ -1,21 +1,39 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createTicket as createTicketRequest,
+  deleteTicket as deleteTicketRequest,
   getTicketApiErrorMessage,
+  getTicketById,
   getTickets,
+  TicketApiError,
+  updateTicket as updateTicketRequest,
 } from '../api/tickets'
 import { useTickets } from './useTickets'
 import type { Ticket } from '../types/ticket'
 
 vi.mock('../api/tickets', () => ({
   createTicket: vi.fn(),
+  deleteTicket: vi.fn(),
   getTicketApiErrorMessage: vi.fn((_error: unknown, fallback: string) => fallback),
+  getTicketById: vi.fn(),
   getTickets: vi.fn(),
+  TicketApiError: class TicketApiError extends Error {
+    readonly status: number
+
+    constructor(status: number) {
+      super(`Ticket API request failed with status ${status}`)
+      this.status = status
+    }
+  },
+  updateTicket: vi.fn(),
 }))
 
 const mockedCreateTicket = vi.mocked(createTicketRequest)
+const mockedDeleteTicket = vi.mocked(deleteTicketRequest)
 const mockedGetTicketApiErrorMessage = vi.mocked(getTicketApiErrorMessage)
+const mockedGetTicketById = vi.mocked(getTicketById)
 const mockedGetTickets = vi.mocked(getTickets)
+const mockedUpdateTicket = vi.mocked(updateTicketRequest)
 
 const ticket: Ticket = {
   id: 1,
@@ -64,6 +82,25 @@ describe('useTickets', () => {
     expect(state.isLoading.value).toBe(false)
   })
 
+  it('fetches a ticket by id', async () => {
+    mockedGetTicketById.mockResolvedValueOnce(ticket)
+    const state = useTickets()
+
+    await expect(state.fetchTicket(1)).resolves.toEqual(ticket)
+
+    expect(mockedGetTicketById).toHaveBeenCalledWith(1)
+    expect(state.errorMessage.value).toBe('')
+  })
+
+  it('returns null when fetching a missing ticket', async () => {
+    mockedGetTicketById.mockRejectedValueOnce(new TicketApiError(404))
+    const state = useTickets()
+
+    await expect(state.fetchTicket(404)).resolves.toBeNull()
+
+    expect(state.errorMessage.value).toBe('')
+  })
+
   it('creates a ticket and returns the created record', async () => {
     mockedCreateTicket.mockResolvedValueOnce(ticket)
     const state = useTickets()
@@ -102,5 +139,31 @@ describe('useTickets', () => {
       '目前無法建立工單，請稍後再試。',
     )
     expect(state.errorMessage.value).toBe('Title is required.')
+  })
+
+  it('updates a ticket and returns the updated record', async () => {
+    mockedUpdateTicket.mockResolvedValueOnce(ticket)
+    const state = useTickets()
+
+    await expect(
+      state.updateTicket(1, {
+        title: 'Updated issue',
+      }),
+    ).resolves.toEqual(ticket)
+
+    expect(mockedUpdateTicket).toHaveBeenCalledWith(1, {
+      title: 'Updated issue',
+    })
+    expect(state.errorMessage.value).toBe('')
+  })
+
+  it('deletes a ticket and reports success', async () => {
+    mockedDeleteTicket.mockResolvedValueOnce(undefined)
+    const state = useTickets()
+
+    await expect(state.deleteTicket(1)).resolves.toBe(true)
+
+    expect(mockedDeleteTicket).toHaveBeenCalledWith(1)
+    expect(state.errorMessage.value).toBe('')
   })
 })

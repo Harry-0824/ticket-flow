@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { getAuthApiErrorMessage, register } from '../api/auth'
+import { useAuth } from '../composables/useAuth'
 import { useAppStore } from '../stores/app'
 
 const router = useRouter()
 const appStore = useAppStore()
+const { errorMessage, register } = useAuth()
 
 const form = reactive({
   email: '',
@@ -13,25 +14,23 @@ const form = reactive({
   password: '',
 })
 const isSubmitting = ref(false)
-const errorMessage = ref('')
 
 const submitRegister = async () => {
   errorMessage.value = ''
   isSubmitting.value = true
 
+  const session = await register({
+    email: form.email.trim(),
+    displayName: form.displayName.trim(),
+    password: form.password,
+  })
+
   try {
-    const session = await register({
-      email: form.email.trim(),
-      displayName: form.displayName.trim(),
-      password: form.password,
-    })
+    if (!session) {
+      return
+    }
     appStore.setSession(session)
     await router.push({ name: 'home' })
-  } catch (error) {
-    errorMessage.value = getAuthApiErrorMessage(
-      error,
-      '註冊失敗，請確認欄位後再試。',
-    )
   } finally {
     isSubmitting.value = false
   }

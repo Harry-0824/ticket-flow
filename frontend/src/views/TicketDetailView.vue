@@ -1,13 +1,18 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { deleteTicket, getTicketById, TicketApiError } from '../api/tickets'
 import PriorityBadge from '../components/PriorityBadge.vue'
 import StatusBadge from '../components/StatusBadge.vue'
+import { useTickets } from '../composables/useTickets'
 import type { Ticket } from '../types/ticket'
 
 const route = useRoute()
 const router = useRouter()
+const {
+  deleteTicket,
+  errorMessage: ticketErrorMessage,
+  fetchTicket,
+} = useTickets()
 
 const ticket = ref<Ticket | null>(null)
 const isLoading = ref(true)
@@ -35,10 +40,12 @@ const deleteCurrentTicket = async () => {
   isDeleting.value = true
 
   try {
-    await deleteTicket(ticket.value.id)
+    const wasDeleted = await deleteTicket(ticket.value.id)
+    if (!wasDeleted) {
+      deleteErrorMessage.value = ticketErrorMessage.value
+      return
+    }
     await router.push('/tickets')
-  } catch {
-    deleteErrorMessage.value = '目前無法刪除此工單，請稍後再試。'
   } finally {
     isDeleting.value = false
   }
@@ -54,14 +61,19 @@ onMounted(async () => {
   }
 
   try {
-    ticket.value = await getTicketById(ticketId)
-  } catch (error) {
-    if (error instanceof TicketApiError && error.status === 404) {
+    const loadedTicket = await fetchTicket(ticketId)
+
+    if (loadedTicket === null) {
       isNotFound.value = true
       return
     }
 
-    errorMessage.value = '目前無法載入此工單，請稍後再試。'
+    if (!loadedTicket) {
+      errorMessage.value = ticketErrorMessage.value
+      return
+    }
+
+    ticket.value = loadedTicket
   } finally {
     isLoading.value = false
   }
