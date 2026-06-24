@@ -1,19 +1,19 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { getAuthApiErrorMessage, login } from '../api/auth'
+import { useAuth } from '../composables/useAuth'
 import { useAppStore } from '../stores/app'
 
 const route = useRoute()
 const router = useRouter()
 const appStore = useAppStore()
+const { errorMessage, login } = useAuth()
 
 const form = reactive({
   email: '',
   password: '',
 })
 const isSubmitting = ref(false)
-const errorMessage = ref('')
 
 const statusMessage = computed(() => {
   if (appStore.authMessage) {
@@ -27,22 +27,21 @@ const submitLogin = async () => {
   errorMessage.value = ''
   isSubmitting.value = true
 
+  const session = await login({
+    email: form.email.trim(),
+    password: form.password,
+  })
+
   try {
-    const session = await login({
-      email: form.email.trim(),
-      password: form.password,
-    })
+    if (!session) {
+      return
+    }
     appStore.setSession(session)
 
     const redirect = typeof route.query.redirect === 'string'
       ? route.query.redirect
       : '/'
     await router.push(redirect)
-  } catch (error) {
-    errorMessage.value = getAuthApiErrorMessage(
-      error,
-      '登入失敗，請確認帳號密碼後再試。',
-    )
   } finally {
     isSubmitting.value = false
   }

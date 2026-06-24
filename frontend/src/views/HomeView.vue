@@ -1,14 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
-import { getTickets } from '../api/tickets'
 import PriorityBadge from '../components/PriorityBadge.vue'
 import StatusBadge from '../components/StatusBadge.vue'
-import type { Ticket } from '../types/ticket'
+import { useTickets } from '../composables/useTickets'
 
-const tickets = ref<Ticket[]>([])
-const isLoading = ref(true)
-const errorMessage = ref('')
+const { tickets, isLoading, errorMessage, loadTickets } = useTickets()
+const dashboardErrorMessage = '目前無法載入工單摘要，請稍後再試。'
 
 const loadDashboard = async () => {
   isLoading.value = true
@@ -16,7 +14,7 @@ const loadDashboard = async () => {
 
   try {
     // Dashboard 直接重用 ticket list API，避免為作品級首頁額外增加一組後端統計 endpoint。
-    tickets.value = await getTickets()
+    await loadTickets(undefined, dashboardErrorMessage)
   } catch {
     errorMessage.value = '目前無法載入工單摘要，請稍後再試。'
   } finally {
