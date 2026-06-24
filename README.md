@@ -14,11 +14,28 @@ TicketFlow 是一個作品集導向的小型全端工單管理系統，重點不
 
 ## 架構說明
 
+### 系統架構
+
+```text
+使用者瀏覽器 ──HTTPS──▶ Netlify (Vue3 SPA)
+                              │
+                              ├── API 呼叫 ──▶ Render (ASP.NET Core Web API)
+                              │                    │
+                              │                    ├── EF Core ──▶ Supabase PostgreSQL
+                              │                    └── JWT Auth
+                              │
+                              └── 路由(Nginx/Catch-all) ──▶ /index.html
+```
+
+前端部署於 Netlify，後端部署於 Render，資料庫使用 Supabase Free PostgreSQL。
+
+### 資料流向
+
 ```text
 Browser
-  -> Netlify Vue SPA
-  -> Render ASP.NET Core Web API
-  -> Supabase managed PostgreSQL
+  -> Netlify Vue 3 SPA (Vite build)
+  -> Render ASP.NET Core 8 Web API
+  -> Supabase managed PostgreSQL (EF Core 8)
 ```
 
 本機開發時，前端 Vite dev server 透過 `/api` proxy 呼叫後端；後端預設使用 SQLite。Production 展示時，前端透過 `VITE_API_BASE_URL` 指向 Render API；後端透過環境變數切到 Supabase PostgreSQL，並用 `Cors__AllowedOrigins` 限制允許的 Netlify origin。
@@ -55,7 +72,7 @@ npm run build
 目前 README 不提交真實帳號、密碼、JWT secret、資料庫密碼或 connection string。部署完成後可在此段補上實際網址：
 
 ```text
-Frontend demo URL: <Netlify URL>
+Frontend demo URL: https://ticket-flow-harry-0824.netlify.app/
 Backend health URL: <Render URL>/health
 Demo account: <部署後手動建立的 demo email>
 Demo password: <面試前私下準備，不提交到 repo>
