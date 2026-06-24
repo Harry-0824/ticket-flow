@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { createTicket, getTicketApiErrorMessage } from '../api/tickets'
-import type { CreateTicketInput } from '../api/tickets'
+import { useTickets } from '../composables/useTickets'
+import type { CreateTicketInput } from '../composables/useTickets'
 import type { TicketPriority, TicketStatus } from '../types/ticket'
 
 const router = useRouter()
+const { createTicket, errorMessage } = useTickets()
 
 const statusOptions: TicketStatus[] = ['Open', 'InProgress', 'Done', 'Archived']
 const priorityOptions: TicketPriority[] = ['Low', 'Medium', 'High']
@@ -30,7 +31,6 @@ const form = reactive<CreateTicketInput>({
 })
 
 const isSubmitting = ref(false)
-const errorMessage = ref('')
 
 const submitTicket = async () => {
   errorMessage.value = ''
@@ -42,22 +42,20 @@ const submitTicket = async () => {
 
   isSubmitting.value = true
 
-  try {
-    const createdTicket = await createTicket({
-      title: form.title.trim(),
-      description: form.description.trim(),
-      status: form.status,
-      priority: form.priority,
-      assignee: form.assignee.trim(),
-    })
+  const createdTicket = await createTicket({
+    title: form.title.trim(),
+    description: form.description.trim(),
+    status: form.status,
+    priority: form.priority,
+    assignee: form.assignee.trim(),
+  })
 
+  try {
+    if (!createdTicket) {
+      return
+    }
     await router.push(
       createdTicket.id ? `/tickets/${createdTicket.id}` : '/tickets',
-    )
-  } catch (error) {
-    errorMessage.value = getTicketApiErrorMessage(
-      error,
-      '目前無法建立工單，請稍後再試。',
     )
   } finally {
     isSubmitting.value = false
