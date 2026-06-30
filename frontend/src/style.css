@@ -1,6 +1,5 @@
 :root {
-  color: #1f2937;
-  background: #f4f6f8;
+  color-scheme: dark;
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
@@ -8,6 +7,34 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  --color-bg: #070a12;
+  --color-shell: #0b1020;
+  --color-surface: #0d1424;
+  --color-panel: #101827;
+  --color-card: #111a2b;
+  --color-card-2: #151f33;
+  --color-border: #253451;
+  --color-border-strong: #3f4f75;
+  --color-primary: #6366f1;
+  --color-primary-2: #7c3aed;
+  --color-primary-soft: rgba(99, 102, 241, 0.16);
+  --color-cyan: #22d3ee;
+  --color-text: #f8fafc;
+  --color-text-muted: #a3aab8;
+  --color-text-subtle: #6b7280;
+  --color-open: #4c8dff;
+  --color-progress: #8b5cf6;
+  --color-resolved: #34d399;
+  --color-high: #f97316;
+  --color-medium: #fbbf24;
+  --color-low: #22c55e;
+  --color-danger: #fb7185;
+  --radius-lg: 24px;
+  --radius-md: 16px;
+  --radius-sm: 10px;
+  --transition-fast: 150ms ease;
+  --shadow-soft: 0 12px 30px rgba(7, 10, 18, 0.22);
+  --focus-ring: 0 0 0 3px rgba(99, 102, 241, 0.22);
 }
 
 * {
@@ -18,9 +45,10 @@ body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
+  color: var(--color-text);
   background:
-    linear-gradient(180deg, #ffffff 0, #f4f6f8 280px),
-    #f4f6f8;
+    linear-gradient(180deg, var(--color-shell) 0, var(--color-bg) 280px),
+    var(--color-bg);
 }
 
 a {
@@ -32,6 +60,12 @@ input,
 textarea,
 select {
   font: inherit;
+  color: var(--color-text);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-text-subtle);
 }
 
 #app {
@@ -737,6 +771,251 @@ dd {
 .priority-badge[data-priority="Low"] {
   background: #ecfdf5;
   color: #047857;
+}
+
+button,
+nav a,
+.primary-link,
+.secondary-link,
+.recent-ticket-row {
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.app-header {
+  border-bottom-color: rgba(63, 79, 117, 0.72);
+  background: rgba(11, 16, 32, 0.9);
+}
+
+.brand,
+.page h1,
+.section-heading h2,
+.auth-heading h1,
+.ticket-title,
+dd {
+  color: var(--color-text);
+}
+
+.session-actions,
+.page p,
+.filter-heading span,
+.form-intro span,
+.recent-ticket-row span,
+.ticket-description,
+dt {
+  color: var(--color-text-muted);
+}
+
+nav a {
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+}
+
+nav a:hover {
+  background: var(--color-card);
+  color: var(--color-text);
+}
+
+nav a.router-link-active {
+  background: var(--color-primary-soft);
+  color: var(--color-text);
+  box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.24);
+}
+
+.primary-link {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-2));
+  color: var(--color-text);
+}
+
+.primary-link:hover,
+.filter-actions button:hover,
+.ticket-form button:hover,
+.danger-button:hover {
+  filter: brightness(1.05);
+}
+
+.secondary-link,
+.session-actions button,
+.filter-actions .secondary-button,
+.secondary-button {
+  border-color: var(--color-border);
+  background: var(--color-card);
+  color: var(--color-text-muted);
+}
+
+.secondary-link:hover,
+.session-actions button:hover,
+.filter-actions .secondary-button:hover,
+.secondary-button:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-card-2);
+  color: var(--color-text);
+}
+
+.placeholder-panel,
+.metric-card,
+.recent-ticket-row,
+.ticket-filters,
+.ticket-form,
+.ticket-detail-card,
+.ticket-table-wrap {
+  border-color: var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-panel);
+  box-shadow: var(--shadow-soft);
+}
+
+.placeholder-panel {
+  color: var(--color-text-muted);
+}
+
+.metric-card span,
+.filter-heading strong,
+.form-intro strong {
+  color: var(--color-text);
+}
+
+.metric-card strong {
+  color: var(--color-text);
+}
+
+.metric-card[data-tone="open"] {
+  border-top-color: var(--color-open);
+}
+
+.metric-card[data-tone="progress"] {
+  border-top-color: var(--color-progress);
+}
+
+.metric-card[data-tone="high"] {
+  border-top-color: var(--color-high);
+}
+
+.metric-card[data-tone="unassigned"] {
+  border-top-color: var(--color-cyan);
+}
+
+.recent-ticket-row:hover,
+.ticket-table tbody tr:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-card);
+}
+
+.ticket-filters label,
+.ticket-form label {
+  color: var(--color-text-muted);
+}
+
+.ticket-filters select,
+.ticket-filters input,
+.ticket-form input,
+.ticket-form textarea,
+.ticket-form select {
+  border-color: var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-card);
+  color: var(--color-text);
+}
+
+.ticket-filters select:focus-visible,
+.ticket-filters input:focus-visible,
+.ticket-form input:focus-visible,
+.ticket-form textarea:focus-visible,
+.ticket-form select:focus-visible,
+.ticket-form button:focus-visible,
+.filter-actions button:focus-visible,
+.session-actions button:focus-visible,
+.danger-button:focus-visible,
+.secondary-button:focus-visible {
+  border-color: var(--color-primary);
+  box-shadow: var(--focus-ring);
+  outline: 0;
+}
+
+.filter-actions button,
+.ticket-form button {
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-2));
+  color: var(--color-text);
+}
+
+.form-intro,
+.metadata-grid,
+.ticket-table th,
+.ticket-table td {
+  border-color: var(--color-border);
+}
+
+.form-error {
+  border-color: rgba(251, 113, 133, 0.36);
+  border-radius: var(--radius-sm);
+  background: rgba(127, 29, 29, 0.28);
+  color: #fecdd3;
+}
+
+.form-notice {
+  border-color: rgba(34, 211, 238, 0.28);
+  border-radius: var(--radius-sm);
+  background: rgba(8, 47, 73, 0.34);
+  color: #a5f3fc;
+}
+
+.danger-button {
+  border-radius: var(--radius-sm);
+  background: var(--color-danger);
+  color: var(--color-text);
+}
+
+.ticket-table th {
+  color: var(--color-text-subtle);
+}
+
+.ticket-title:hover,
+.page > a,
+.page > a:hover {
+  color: var(--color-cyan);
+}
+
+.badge {
+  box-shadow: inset 0 0 0 1px transparent;
+}
+
+.status-badge[data-status="Open"] {
+  background: rgba(76, 141, 255, 0.16);
+  color: #bfdbfe;
+}
+
+.status-badge[data-status="InProgress"] {
+  background: rgba(139, 92, 246, 0.16);
+  color: #ddd6fe;
+}
+
+.status-badge[data-status="Done"] {
+  background: rgba(52, 211, 153, 0.16);
+  color: #bbf7d0;
+}
+
+.status-badge[data-status="Archived"] {
+  background: rgba(31, 41, 55, 0.76);
+  color: #d1d5db;
+}
+
+.priority-badge[data-priority="High"] {
+  background: rgba(249, 115, 22, 0.16);
+  color: #fdba74;
+}
+
+.priority-badge[data-priority="Medium"] {
+  background: rgba(251, 191, 36, 0.14);
+  color: #fde68a;
+}
+
+.priority-badge[data-priority="Low"] {
+  background: rgba(34, 197, 94, 0.14);
+  color: #bbf7d0;
 }
 
 @media (max-width: 820px) {
