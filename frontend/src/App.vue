@@ -2,6 +2,7 @@
 import { onMounted, onUnmounted } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { AUTH_UNAUTHORIZED_EVENT } from './api/session'
+import AppShell from './components/layout/AppShell.vue'
 import { useAppStore } from './stores/app'
 
 const appStore = useAppStore()
@@ -31,28 +32,25 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="app-shell">
+  <AppShell
+    v-if="appStore.isAuthenticated"
+    :user-name="appStore.currentUser?.displayName"
+    @logout="logout"
+  >
+    <RouterView />
+  </AppShell>
+
+  <div v-else class="app-shell guest-shell">
     <header class="app-header">
       <RouterLink class="brand" to="/">TicketFlow</RouterLink>
 
       <nav aria-label="主要導覽">
-        <template v-if="appStore.isAuthenticated">
-          <RouterLink to="/">首頁</RouterLink>
-          <RouterLink to="/tickets">工單</RouterLink>
-        </template>
-        <template v-else>
-          <RouterLink to="/login">登入</RouterLink>
-          <RouterLink to="/register">註冊</RouterLink>
-        </template>
+        <RouterLink to="/login">登入</RouterLink>
+        <RouterLink to="/register">註冊</RouterLink>
       </nav>
-
-      <div v-if="appStore.isAuthenticated" class="session-actions">
-        <span>{{ appStore.currentUser?.displayName }}</span>
-        <button type="button" @click="logout">登出</button>
-      </div>
     </header>
 
-    <main>
+    <main class="guest-main">
       <RouterView />
     </main>
   </div>
